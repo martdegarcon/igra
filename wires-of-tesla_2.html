@@ -1,0 +1,922 @@
+<title>Wires of Tesla</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=PT+Serif:ital,wght@0,400;0,700;1,400&family=Russo+One&display=swap">
+<style>
+/* Layout: full-screen canvas game; Persona-style skewed HUD panels in ink / volt / brass / signal red */
+:root{
+  --ink:#0c0a10; --ink2:#17131c; --paper:#f1e8d6; --red:#e1252f; --brass:#c99b4c; --volt:#71f1ff; --smoke:#8d8496;
+  --f-display:'Russo One','Oswald',Impact,sans-serif;
+  --f-ui:'Oswald','Arial Narrow',Arial,sans-serif;
+  --f-text:'PT Serif',Georgia,serif;
+  color-scheme:dark;
+}
+html,body{height:100%;margin:0;background:var(--ink);color:var(--paper);overflow:hidden;font-family:var(--f-ui)}
+canvas#game{position:fixed;inset:0;display:block}
+.skew{transform:skewX(-9deg)}
+.unskew{transform:skewX(9deg)}
+#hud{position:fixed;inset:0;pointer-events:none}
+#egoPanel{position:absolute;left:max(18px,env(safe-area-inset-left,0px));top:calc(16px + env(safe-area-inset-top,0px));width:270px;display:flex;flex-direction:column;gap:6px}
+#formTag{background:var(--paper);color:var(--ink);padding:6px 14px 5px;display:flex;align-items:baseline;gap:10px;transform:skewX(-9deg);box-shadow:5px 5px 0 var(--ink)}
+#formTag.tesla{background:var(--volt);}
+#formTag > *{transform:skewX(9deg)}
+#formName{font:700 22px/1 var(--f-ui);letter-spacing:.06em}
+#formTag small{font:400 12px/1 var(--f-ui);opacity:.7;letter-spacing:.04em}
+.egoBox{background:var(--ink);border:2px solid var(--paper);padding:7px 12px 9px;transform:skewX(-9deg);box-shadow:5px 5px 0 var(--red)}
+.egoBox > *{transform:skewX(9deg)}
+.egoRow{display:flex;align-items:baseline;gap:8px;font:600 13px/1 var(--f-ui);letter-spacing:.14em}
+#egoLvl{font:700 20px/1 var(--f-display);color:var(--red);letter-spacing:0}
+#egoVal{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--smoke);letter-spacing:.04em}
+.egoBar{height:10px;background:#2b2530;margin-top:7px;position:relative;overflow:hidden}
+#egoFill{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,var(--red),#ff6a3d);transition:width .15s}
+#insp{margin-top:7px;font:400 13px/1 var(--f-ui);letter-spacing:.06em;color:var(--brass);display:flex;gap:6px;align-items:center}
+#inspIcons{display:flex;gap:3px}
+#inspIcons i{width:9px;height:12px;border-radius:50% 50% 30% 30%;background:var(--brass);box-shadow:0 0 6px var(--brass);display:block}
+#tasks{position:absolute;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translateX(-50%);min-width:300px;max-width:420px}
+#tasks .inner{background:rgba(12,10,16,.82);border-left:5px solid var(--red);padding:9px 14px 10px}
+#tasks h3{margin:0 0 5px;font:700 12px/1 var(--f-ui);letter-spacing:.22em;color:var(--red)}
+#taskList{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;font:400 14px/1.3 var(--f-ui)}
+#taskList li{display:flex;gap:8px;align-items:baseline}
+#taskList li.main{font-weight:600;font-size:15px;letter-spacing:.02em}
+#taskList li.sub{padding-left:14px;color:#d8cfbf}
+#taskList li.fmt{color:var(--volt)}
+#taskList li.opt{color:var(--brass)}
+#taskList li.done{color:#7c7484;text-decoration:line-through}
+#taskList li b{font-weight:600}
+#mapBox{position:absolute;right:max(18px,env(safe-area-inset-right,0px));top:calc(16px + env(safe-area-inset-top,0px));display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+#mini{width:240px;height:104px;background:rgba(12,10,16,.85);border:2px solid var(--paper);box-shadow:5px 5px 0 var(--ink)}
+#roomName{font:600 13px/1 var(--f-ui);letter-spacing:.16em;background:var(--ink);padding:5px 10px;text-transform:uppercase}
+#bottom{position:absolute;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:7px}
+#slots{display:flex;gap:10px}
+.slot{width:62px;height:62px;background:rgba(12,10,16,.85);border:2px solid #5b5263;transform:skewX(-9deg);position:relative;display:flex;align-items:center;justify-content:center}
+.slot.full{border-color:var(--volt);box-shadow:0 0 12px rgba(113,241,255,.35)}
+.slot .k{position:absolute;left:5px;top:3px;font:700 12px/1 var(--f-ui);color:var(--smoke);transform:skewX(9deg)}
+.slot .n{transform:skewX(9deg);font:600 11px/1.05 var(--f-ui);text-align:center;letter-spacing:.03em;color:var(--paper);padding:0 4px}
+.slot .ic{transform:skewX(9deg);font-size:22px;line-height:1;display:block;margin-bottom:2px}
+#craftHint{font:400 13px/1 var(--f-ui);letter-spacing:.08em;color:#cfc6b8;background:rgba(12,10,16,.8);padding:5px 12px}
+#craftHint b{color:var(--brass);font-weight:600}
+#prompt{position:absolute;left:50%;bottom:calc(132px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);font:600 16px/1 var(--f-ui);letter-spacing:.05em;display:none;align-items:center;gap:10px;background:var(--ink);padding:8px 14px;border:2px solid var(--paper)}
+#prompt kbd{background:var(--paper);color:var(--ink);font:700 14px/1 var(--f-ui);padding:4px 8px}
+#prompt.off{border-color:#5b5263;color:#9c93a5}
+#prompt.off kbd{background:#5b5263}
+#status{position:absolute;left:50%;top:calc(215px + env(safe-area-inset-top,0px));transform:translateX(-50%);font:700 18px/1 var(--f-ui);letter-spacing:.14em;display:none;padding:8px 18px;background:var(--red);color:var(--paper);box-shadow:5px 5px 0 var(--ink)}
+#status.show{display:block;animation:pulse .6s infinite alternate}
+#status.cool{background:var(--paper);color:var(--ink);animation:none}
+@keyframes pulse{to{transform:translateX(-50%) scale(1.05)}}
+#tip{position:absolute;left:max(18px,env(safe-area-inset-left,0px));bottom:calc(20px + env(safe-area-inset-bottom,0px));max-width:340px;background:var(--paper);color:var(--ink);padding:11px 14px 12px;font:400 15px/1.35 var(--f-text);box-shadow:6px 6px 0 var(--red);opacity:0;transition:opacity .3s;border-left:6px solid var(--ink)}
+#tip.show{opacity:1}
+#tip b{font-family:var(--f-ui);font-weight:700;letter-spacing:.04em}
+#toasts{position:absolute;right:max(18px,env(safe-area-inset-right,0px));top:calc(160px + env(safe-area-inset-top,0px));display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.toast{background:var(--ink);border-right:5px solid var(--brass);padding:8px 13px;font:400 15px/1.25 var(--f-ui);letter-spacing:.03em;max-width:330px;animation:tin .25s ease-out}
+.toast.good{border-color:var(--volt)}
+.toast.bad{border-color:var(--red)}
+.toast.ego{border-color:var(--red);background:var(--red);font-weight:700}
+@keyframes tin{from{transform:translateX(30px);opacity:0}}
+#vignette{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .25s;background:radial-gradient(ellipse at center,transparent 55%,rgba(225,37,47,.45) 100%)}
+#vignette.chase{background:radial-gradient(ellipse at center,transparent 50%,rgba(225,37,47,.7) 100%)}
+
+/* screens */
+.screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px;box-sizing:border-box}
+.screen[hidden]{display:none!important}
+.dim{background:rgba(8,6,12,.72)}
+button{font:700 17px/1 var(--f-ui);letter-spacing:.1em;background:var(--red);color:var(--paper);border:0;padding:13px 26px;cursor:pointer;transform:skewX(-9deg);box-shadow:5px 5px 0 var(--paper);text-transform:uppercase}
+button span{display:inline-block;transform:skewX(9deg)}
+button:hover{background:#ff3540}
+button:focus-visible{outline:3px solid var(--volt);outline-offset:4px}
+button.ghost{background:transparent;border:2px solid var(--paper);box-shadow:none}
+button:disabled{background:#3a3340;color:#827a8a;box-shadow:5px 5px 0 #2a2430;cursor:not-allowed}
+#title{flex-direction:column;gap:26px;text-align:center;background:linear-gradient(180deg,rgba(8,6,12,.25),rgba(8,6,12,.8))}
+.logo{font:400 clamp(44px,9vw,118px)/.9 var(--f-display);letter-spacing:.02em;color:var(--paper);text-shadow:6px 6px 0 var(--red),0 0 40px rgba(113,241,255,.35)}
+.logo em{font-style:normal;color:var(--volt);display:block;font-size:.42em;letter-spacing:.42em;margin-bottom:12px;text-shadow:none}
+.tagline{font:italic 400 clamp(16px,2vw,21px)/1.4 var(--f-text);max-width:560px;margin:0 auto;color:#e2d8c6}
+.meta{font:600 12px/1 var(--f-ui);letter-spacing:.3em;color:var(--brass);text-transform:uppercase}
+.card{background:var(--paper);color:var(--ink);max-width:640px;width:100%;padding:28px 30px 26px;box-shadow:10px 10px 0 var(--red);position:relative;box-sizing:border-box;max-height:100%;overflow:auto}
+.card h2{font:400 34px/1 var(--f-display);margin:0 0 4px;letter-spacing:.01em}
+.card .eyebrow{font:700 12px/1 var(--f-ui);letter-spacing:.28em;color:var(--red);margin-bottom:10px;text-transform:uppercase}
+.card p{font:400 17px/1.5 var(--f-text);margin:10px 0}
+.controls{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:16px 0 20px;font:400 15px/1.3 var(--f-ui)}
+.controls kbd{background:var(--ink);color:var(--paper);font:700 13px/1 var(--f-ui);padding:5px 8px;text-align:center;letter-spacing:.06em}
+.card .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:18px}
+.card button{box-shadow:5px 5px 0 var(--ink)}
+.card button.ghost{border-color:var(--ink);color:var(--ink)}
+/* dialog */
+#dialog{align-items:flex-end;padding-bottom:calc(40px + env(safe-area-inset-bottom,0px))}
+.dlg{width:min(860px,100%);position:relative}
+.dlg .who{display:inline-block;background:var(--ink);color:var(--paper);font:700 20px/1 var(--f-ui);letter-spacing:.08em;padding:9px 18px 8px;transform:skewX(-9deg) rotate(-2deg);margin-left:20px;box-shadow:4px 4px 0 var(--red);position:relative;z-index:2}
+.dlg .who.tesla{background:var(--volt);color:var(--ink)}
+.dlg .who span{display:inline-block;transform:skewX(9deg)}
+.dlg .who small{display:block;font:400 11px/1 var(--f-ui);letter-spacing:.2em;opacity:.75;margin-top:3px}
+.dlg .box{background:var(--paper);color:var(--ink);padding:22px 28px 26px;margin-top:-8px;font:400 19px/1.5 var(--f-text);box-shadow:8px 8px 0 var(--ink);min-height:84px;clip-path:polygon(0 4%,100% 0,99% 100%,1% 96%)}
+.dlg .box.inner{font-style:italic;color:#29405a}
+.dlg .next{position:absolute;right:26px;bottom:14px;font:700 12px/1 var(--f-ui);letter-spacing:.2em;color:var(--red)}
+/* craft */
+.recipes{display:grid;gap:12px;margin:14px 0 6px}
+.recipe{display:grid;grid-template-columns:48px 1fr auto;gap:14px;align-items:center;border:2px solid var(--ink);padding:12px 14px}
+.recipe .ic{font-size:30px;text-align:center}
+.recipe h4{margin:0;font:700 18px/1.1 var(--f-ui);letter-spacing:.03em}
+.recipe h4 small{font:600 11px/1 var(--f-ui);letter-spacing:.18em;color:var(--red);margin-left:6px;text-transform:uppercase}
+.recipe p{margin:4px 0 0;font:400 14px/1.4 var(--f-text)}
+.recipe button{padding:10px 14px;font-size:14px}
+.stat{font:600 14px/1 var(--f-ui);letter-spacing:.08em}
+/* research */
+.ideas{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:16px 0}
+.idea{border:2px solid var(--ink);padding:14px;display:flex;flex-direction:column;gap:6px;min-width:0;background:#fff8ea}
+.idea.locked{opacity:.45;background:transparent;border-style:dashed}
+.idea.tech{background:var(--ink);color:var(--paper)}
+.idea .st{font:700 11px/1 var(--f-ui);letter-spacing:.22em;color:var(--red);text-transform:uppercase}
+.idea.tech .st{color:var(--volt)}
+.idea h4{margin:0;font:700 19px/1.1 var(--f-ui)}
+.idea p{margin:0;font:400 14px/1.4 var(--f-text)}
+.idea button{margin-top:6px;font-size:13px;padding:9px 12px;align-self:flex-start}
+/* newspaper */
+.paper{background:#ece2cc;color:#1b1712;max-width:720px;width:100%;padding:26px 30px;box-shadow:10px 10px 0 var(--red);box-sizing:border-box;max-height:100%;overflow:auto;transform:rotate(-1deg)}
+.paper .mast{font:400 15px/1 var(--f-display);letter-spacing:.3em;text-align:center;border-bottom:3px double #1b1712;padding-bottom:8px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.paper .mast span{font:600 11px/1 var(--f-ui);letter-spacing:.14em}
+.paper h1{font:700 clamp(28px,5vw,46px)/1.02 var(--f-ui);text-transform:uppercase;margin:14px 0 8px;text-wrap:balance;letter-spacing:.01em}
+.paper .lede{font:italic 400 18px/1.45 var(--f-text);margin:0 0 14px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;border-top:1px solid #1b1712;padding-top:12px}
+.stats div{font:400 13px/1.2 var(--f-ui);letter-spacing:.06em;text-transform:uppercase;color:#5a5045}
+.stats b{display:block;font:700 26px/1.1 var(--f-ui);color:#1b1712;font-variant-numeric:tabular-nums}
+.epi{font:400 16px/1.5 var(--f-text);margin-top:16px;border-left:4px solid var(--red);padding-left:12px}
+.paper button{box-shadow:5px 5px 0 #1b1712}
+#fade{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .8s}
+@media (prefers-reduced-motion:reduce){#status.show{animation:none}.toast{animation:none}}
+@media (max-width:820px){#tasks{display:none}#egoPanel{width:220px}#mini{width:180px;height:78px}}
+</style>
+
+<canvas id="game"></canvas>
+<div id="vignette"></div>
+
+<div id="hud" hidden>
+  <div id="egoPanel">
+    <div id="formTag"><span id="formName">ПОСЕТИТЕЛЬ</span><small>R — сменить облик</small></div>
+    <div class="egoBox">
+      <div>
+        <div class="egoRow"><span>ЭГОИЗМ</span><span id="egoLvl">I</span><span id="egoVal">0</span></div>
+        <div class="egoBar"><i id="egoFill"></i></div>
+        <div id="insp">ВДОХНОВЕНИЕ <span id="inspIcons"></span><span id="inspN">0</span></div>
+      </div>
+    </div>
+  </div>
+  <div id="tasks"><div class="inner"><h3>ДЕЛО №1 · ДИРИЖАБЛЬ «КОЛУМБИЯ»</h3><ul id="taskList"></ul></div></div>
+  <div id="mapBox"><canvas id="mini" width="480" height="208"></canvas><span id="roomName">Палуба</span></div>
+  <div id="bottom">
+    <div id="slots"></div>
+    <div id="craftHint"><b>C</b> — мастерская · <b>1–3</b> — применить · идеи <b id="ideasN">0/4</b></div>
+  </div>
+  <div id="prompt"></div>
+  <div id="status"></div>
+  <div id="tip"></div>
+  <div id="toasts"></div>
+</div>
+
+<section id="title" class="screen">
+  <div class="meta">Вертикальный срез · Акт I · Сцена 2</div>
+  <div class="logo"><em>ВОР-ШОУМЕН</em>WIRES<br>OF TESLA</div>
+  <p class="tagline">Приключенческий стелс о воре, который не будет прятаться. Нью-Йорк, 1904. Публика ждёт не изобретений — она ждёт того, кто их украдёт.</p>
+  <button id="btnStart" type="button"><span>Начать</span></button>
+</section>
+
+<section id="intro" class="screen dim" hidden>
+  <div class="card">
+    <div class="eyebrow">Акт I · Тюрьма</div>
+    <h2>Решётка и тишина</h2>
+    <p>Тесла просыпается за решёткой. Камера, сырость, шаги охраны в коридоре. Как он сюда попал?</p>
+    <p>Память подбрасывает обрывок: одно из первых дел. Дирижабль «Колумбия», трюм, машина, которая умеет хранить голос, — <b>фонограф</b>.</p>
+    <div class="controls">
+      <kbd>WASD</kbd><span>идти (или стрелки)</span>
+      <kbd>R</kbd><span>сменить облик: посетитель ⇄ Тесла</span>
+      <kbd>E</kbd><span>говорить / взаимодействовать</span>
+      <kbd>C</kbd><span>мастерская прототипов</span>
+      <kbd>1–3</kbd><span>применить прототип из слота</span>
+      <kbd>ESC</kbd><span>пауза · <b>M</b> — звук</span>
+    </div>
+    <div class="row"><button id="btnRemember" type="button"><span>Вспомнить</span></button></div>
+  </div>
+</section>
+
+<section id="dialog" class="screen" hidden>
+  <div class="dlg">
+    <div class="who" id="dlgWho"><span id="dlgWhoT">—</span></div>
+    <div class="box" id="dlgBox"></div>
+    <div class="next">E / ПРОБЕЛ ▸</div>
+  </div>
+</section>
+
+<section id="craft" class="screen dim" hidden>
+  <div class="card">
+    <div class="eyebrow">Мастерская · тратит эгоизм</div>
+    <h2>Прототипы</h2>
+    <p class="stat">Эгоизм: <span id="crEgo">0</span> · Свободных слотов: <span id="crSlots">3</span></p>
+    <div class="recipes" id="recipes"></div>
+    <div class="row"><button id="btnCraftClose" class="ghost" type="button"><span>Закрыть · C</span></button></div>
+  </div>
+</section>
+
+<section id="pause" class="screen dim" hidden>
+  <div class="card">
+    <div class="eyebrow">Пауза</div>
+    <h2>Антракт</h2>
+    <p>Посетитель может говорить с людьми, но не трогает предметы. Тесла трогает всё, но каждый взгляд публики — это выступление: эгоизм растёт, охрана бежит. Меняй облик там, где тебя никто не видит.</p>
+    <div class="controls">
+      <kbd>WASD</kbd><span>идти</span><kbd>R</kbd><span>сменить облик</span><kbd>E</kbd><span>взаимодействие</span><kbd>C</kbd><span>мастерская</span><kbd>1–3</kbd><span>прототипы</span><kbd>M</kbd><span>звук</span>
+    </div>
+    <div class="row"><button id="btnResume" type="button"><span>Продолжить</span></button><button id="btnRestart" class="ghost" type="button"><span>Начать заново</span></button></div>
+  </div>
+</section>
+
+<section id="fail" class="screen dim" hidden>
+  <div class="card">
+    <div class="eyebrow">Плохая концовка… почти</div>
+    <h2>Теслу схватили</h2>
+    <p id="failText">«Попался, фокусник!»</p>
+    <p>Эгоизм сгорел до нуля. Тесла снова на палубе, но помнит всё, что узнал. Прототип «Шокер» спас бы от поимки.</p>
+    <div class="row"><button id="btnRetry" type="button"><span>Ещё раз с палубы</span></button></div>
+  </div>
+</section>
+
+<section id="research" class="screen dim" hidden>
+  <div class="card" style="max-width:820px">
+    <div class="eyebrow">Фонограф изучен · идеи становятся теориями</div>
+    <h2>Исследование</h2>
+    <p>Тесла разобрал фонограф до винтика. Каждая найденная идея превратилась в теорию. Вдохновение превращает теорию в технологию — из неё можно собирать прототипы в следующих актах.</p>
+    <p class="stat">Вдохновение: <span id="rsInsp">0</span></p>
+    <div class="ideas" id="ideaCards"></div>
+    <div class="row"><button id="btnFinish" type="button"><span>Утренние газеты</span></button></div>
+  </div>
+</section>
+
+<section id="ending" class="screen dim" hidden>
+  <div class="paper">
+    <div class="mast"><span>ЧЕТВЕРГ · 1904</span>НЬЮ-ЙОРК СФЕР<span>ЦЕНА 2 ЦЕНТА</span></div>
+    <h1 id="headline">—</h1>
+    <p class="lede" id="lede">—</p>
+    <div class="stats" id="stats"></div>
+    <p class="epi">Тесла открывает глаза. Решётка. Тюрьма. Но теперь он помнит, как устроен звук, — и знает, как с его помощью выйти из камеры. <b>Акт II: ярмарка и дефектоскоп Рентгена — дальше по сюжету.</b></p>
+    <div class="row" style="margin-top:16px;display:flex;gap:14px;flex-wrap:wrap"><button id="btnAgain" type="button"><span>Сыграть ещё раз</span></button></div>
+  </div>
+</section>
+<div id="fade"></div>
+
+<script>
+(()=>{
+'use strict';
+// ================= CONSTANTS & MAP =================
+const T=40, W=60, H=26;
+const FLOOR=1, WALL=2, FURN=3, TALL=4, LOCK=5, DOOR=6;
+const c=(tx,ty)=>({x:(tx+.5)*T,y:(ty+.5)*T});
+const rooms=[
+ {n:'Прогулочная палуба',x0:1,y0:1,x1:9,y1:24,f:'deck'},
+ {n:'Гранд-салон',x0:11,y0:1,x1:29,y1:9,f:'salon',dark:1},
+ {n:'Бар «Эфир»',x0:31,y0:1,x1:39,y1:9,f:'bar',dark:1},
+ {n:'Каюта капитана',x0:41,y0:1,x1:49,y1:9,f:'captain',staff:1},
+ {n:'Коридор',x0:11,y0:11,x1:49,y1:14,f:'corr'},
+ {n:'Уборная',x0:11,y0:16,x1:15,y1:24,f:'wash'},
+ {n:'Машинное отделение',x0:17,y0:16,x1:29,y1:24,f:'engine',staff:1},
+ {n:'Кладовая',x0:31,y0:16,x1:39,y1:24,f:'store'},
+ {n:'Обзорная галерея',x0:41,y0:16,x1:49,y1:24,f:'gallery'},
+ {n:'Грузовой трюм',x0:51,y0:1,x1:58,y1:24,f:'hold',staff:1},
+];
+const furn=[
+ {k:'bench',x:2,y:4,w:2,h:1},{k:'bench',x:2,y:21,w:2,h:1},{k:'bench',x:6,y:2,w:2,h:1},{k:'bench',x:6,y:23,w:2,h:1},
+ {k:'table',x:17,y:4,w:2,h:1},{k:'table',x:24,y:6,w:2,h:1},{k:'table',x:13,y:7,w:2,h:1},
+ {k:'piano',x:27,y:1,w:2,h:1},{k:'sofa',x:20,y:8,w:3,h:1},
+ {k:'counter',x:32,y:3,w:7,h:1},{k:'table',x:36,y:7,w:1,h:1},
+ {k:'desk',x:45,y:3,w:2,h:1},{k:'shelf',x:41,y:1,w:3,h:1,tall:1},{k:'maptable',x:42,y:7,w:2,h:1},{k:'bed',x:48,y:6,w:2,h:3},
+ {k:'sink',x:11,y:24,w:1,h:1},{k:'sink',x:12,y:24,w:1,h:1},{k:'stall',x:14,y:16,w:2,h:2,tall:1},
+ {k:'engine',x:20,y:18,w:7,h:4,tall:1},{k:'lever',x:29,y:17,w:1,h:1},{k:'workbench',x:17,y:24,w:2,h:1},
+ {k:'crate',x:32,y:17,w:2,h:1,tall:1},{k:'crate',x:32,y:18,w:1,h:1,tall:1},{k:'crate',x:36,y:19,w:2,h:2,tall:1},{k:'crate',x:32,y:22,w:2,h:1,tall:1},{k:'crate',x:38,y:16,w:2,h:1,tall:1},
+ {k:'bench',x:42,y:21,w:2,h:1},{k:'bench',x:47,y:18,w:2,h:1},
+ {k:'crate',x:52,y:5,w:2,h:2,tall:1},{k:'crate',x:56,y:3,w:2,h:1,tall:1},{k:'crate',x:56,y:19,w:2,h:2,tall:1},{k:'crate',x:52,y:19,w:2,h:1,tall:1},{k:'crate',x:52,y:15,w:1,h:2,tall:1},
+ {k:'pedestal',x:55,y:12,w:1,h:1},
+];
+let grid, roomGrid;
+function buildMap(){
+  grid=[];for(let y=0;y<H;y++){grid.push(new Array(W).fill(FLOOR));}
+  const set=(x,y,v)=>{grid[y][x]=v};
+  for(let x=0;x<W;x++){set(x,0,WALL);set(x,H-1,WALL);} for(let y=0;y<H;y++){set(0,y,WALL);set(W-1,y,WALL);}
+  const vl=(x,y0,y1)=>{for(let y=y0;y<=y1;y++)set(x,y,WALL)}, hl=(y,x0,x1)=>{for(let x=x0;x<=x1;x++)set(x,y,WALL)};
+  vl(10,0,25);hl(10,10,50);hl(15,10,50);vl(30,0,10);vl(40,0,10);vl(16,15,25);vl(30,15,25);vl(40,15,25);vl(50,0,25);
+  [[10,12],[10,13],[18,10],[19,10],[24,10],[25,10],[30,5],[30,6],[35,10],[36,10],[45,10],[13,15],[23,15],[35,15],[44,15],[45,15],[46,15]].forEach(([x,y])=>set(x,y,DOOR));
+  set(50,12,LOCK);set(50,13,LOCK);
+  furn.forEach(f=>{for(let y=f.y;y<f.y+f.h;y++)for(let x=f.x;x<f.x+f.w;x++)set(x,y,f.tall?TALL:FURN)});
+  roomGrid=[];for(let y=0;y<H;y++){const r=[];for(let x=0;x<W;x++){r.push(rooms.findIndex(m=>x>=m.x0&&x<=m.x1&&y>=m.y0&&y<=m.y1));}roomGrid.push(r);}
+}
+const tAt=(tx,ty)=>(tx<0||ty<0||tx>=W||ty>=H)?WALL:grid[ty][tx];
+const solidT=t=>t===WALL||t===FURN||t===TALL||t===LOCK;
+const sightT=t=>t===WALL||t===TALL||t===LOCK;
+const solidAt=(x,y)=>solidT(tAt(Math.floor(x/T),Math.floor(y/T)));
+const collides=(x,y,r)=>solidAt(x-r,y-r)||solidAt(x+r,y-r)||solidAt(x-r,y+r)||solidAt(x+r,y+r);
+function moveEnt(e,dx,dy){if(!collides(e.x+dx,e.y,e.r))e.x+=dx;if(!collides(e.x,e.y+dy,e.r))e.y+=dy;}
+function roomAtPx(x,y){const tx=Math.floor(x/T),ty=Math.floor(y/T);if(ty<0||ty>=H||tx<0||tx>=W)return -1;return roomGrid[ty][tx];}
+function los(x0,y0,x1,y1){const dx=x1-x0,dy=y1-y0,d=Math.hypot(dx,dy),n=Math.ceil(d/8);for(let i=1;i<n;i++){const x=x0+dx*i/n,y=y0+dy*i/n;if(sightT(tAt(Math.floor(x/T),Math.floor(y/T))))return false;}return true;}
+function clearLine(x0,y0,x1,y1,r){const d=Math.hypot(x1-x0,y1-y0),n=Math.ceil(d/10);for(let i=1;i<=n;i++){if(collides(x0+(x1-x0)*i/n,y0+(y1-y0)*i/n,r))return false;}return true;}
+function bfs(sx,sy,gx,gy){
+  if(sx===gx&&sy===gy)return [];
+  if(solidT(tAt(gx,gy)))return null;
+  const prev=new Int32Array(W*H).fill(-1),s=sy*W+sx,g=gy*W+gx;prev[s]=s;const q=[s];let h=0;
+  while(h<q.length){const k=q[h++];if(k===g)break;const x=k%W,y=(k/W)|0;
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=W||ny>=H)continue;const nk=ny*W+nx;if(prev[nk]!==-1||solidT(grid[ny][nx]))continue;prev[nk]=k;q.push(nk);}}
+  if(prev[g]===-1)return null;const path=[];let k=g;while(k!==s){path.push({x:(k%W+.5)*T,y:(((k/W)|0)+.5)*T});k=prev[k];}return path.reverse();
+}
+const angN=a=>{while(a>Math.PI)a-=2*Math.PI;while(a<-Math.PI)a+=2*Math.PI;return a};
+const lerpA=(a,b,t)=>a+angN(b-a)*Math.min(1,t);
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+const rnd=(a,b)=>a+Math.random()*(b-a);
+const ROMAN=['I','II','III','IV','V'];
+
+// ================= CONTENT =================
+const IDEAS={
+ lure:{name:'Звуковая приманка',where:'Кладовая',idea:'«Если шаги можно записать, их можно и проиграть. В другом конце коридора.»',theory:'Валик с записью шагов на часовом заводе. Охрана идёт на звук.',tech:'Прототип «Приманка»: бросаешь — охрана уходит проверять шум.'},
+ voice:{name:'Чужой голос',where:'Каюта капитана',idea:'«Валик хранит любой голос. Даже голос капитана, отдающего приказ.»',theory:'Записать приказ начальника охраны и проиграть его через рупор.',tech:'Прототип «Приказ»: охранник уходит на пост, который ты укажешь.'},
+ reso:{name:'Резонанс',where:'Машинное отделение',idea:'«Каждая вещь поёт на своей частоте. Найди её — и стекло лопнет само.»',theory:'Игла фонографа как камертон: усиливает собственную частоту предмета.',tech:'Прототип «Камертон»: разбивает стекло и замки. Громко, публика в восторге.'},
+ echo:{name:'Эхо-карта',where:'Грузовой трюм',idea:'«Звук возвращается от стен. Комнату можно увидеть ушами.»',theory:'Щелчок и раструб: по эху понятно, кто стоит за стеной.',tech:'Прототип «Эхолот»: на секунду показывает людей сквозь стены.'},
+};
+const RECIPES={
+ shock:{name:'Карманный шокер',kind:'защита',ic:'⚡',cost:40,desc:'Если охранник схватит Теслу, шокер сработает сам и оглушит его на 5 секунд. Рядом с охранником — клавиша слота.'},
+ spark:{name:'Искровой фонтан',kind:'шутовское',ic:'✷',cost:30,desc:'Фейерверк из молний. Перед публикой — большой прирост эгоизма. Ослепляет всех вокруг на 3 секунды: время сбежать.'},
+};
+const LOOKS={
+ tesla:{coat:'#15131a',hat:'top',skin:'#e6c3a0'},
+ visitor:{coat:'#6b4a33',hat:'bowler',hatC:'#3b2f28',skin:'#e6c3a0'},
+ guard:{coat:'#1f3157',hat:'cap',hatC:'#16233f',skin:'#d9b08c'},
+};
+function paxLook(i){const coats=['#5b2b3a','#2f4b45','#5a4a2a','#3a3a55','#6a3f2a','#41513a','#5d3955'];const hats=['#2a2224','#4a3a2e','#20283a','#5a2a2a'];return {coat:coats[i%coats.length],hat:i%3===0?'lady':'bowler',hatC:hats[i%hats.length],accent:['#e1252f','#c99b4c','#71f1ff','#e8e0d0'][i%4],skin:['#e6c3a0','#c99a76','#f0d2b4','#a87a58'][i%4]};}
+
+// ================= STATE =================
+let S, P, pax, guards, objs, fx, parts;
+function initPax(){
+  const L=(name,tx,ty,face,opt={})=>Object.assign({kind:'pax',name,x:(tx+.5)*T,y:(ty+.5)*T,r:12,face,fov:110*Math.PI/180,range:205,blind:0,turnT:rnd(1,4),tFace:face,home:face,look:paxLook(Math.floor(tx*7+ty*3)),bubble:null,sees:false},opt);
+  pax=[
+   L('Стюард Оливер',6,12,Math.PI,{talk:'steward',look:{coat:'#e8e0d0',hat:'cap',hatC:'#7a1c22',skin:'#e6c3a0'},spin:0.4}),
+   L('Пассажир',3,6,-Math.PI/2,{line:'Говорят, Тесла может пройти сквозь стену. Ну, или просто очень быстро бегает.'}),
+   L('Пассажирка',6,20,Math.PI/2,{line:'Кладовую на этом корабле никто не запирает. Там ящики, и в одном что-то звенит.'}),
+   L('Мисс Пемберли',14,3,0.4,{talk:'reporter',look:{coat:'#2d2a3d',hat:'lady',hatC:'#7a1c22',accent:'#e1252f',skin:'#f0d2b4'}}),
+   L('Банкир',20,2,Math.PI/2,{line:'Если бы Тесла объявился здесь, я бы попросил автограф. А потом позвал бы охрану. Наверное.'}),
+   L('Пассажирка',27,5,Math.PI,{line:'Охрана тут неповоротливая. Мой бульдог бегает быстрее мистера О\'Хары.'}),
+   L('Пассажир',16,7,-0.6,{line:'В салоне всегда кто-нибудь смотрит. Разве что свет погаснет…'}),
+   L('Пассажирка',22,6,Math.PI*0.9,{line:'Ах, этот полёт — сплошная скука. Хоть бы что-нибудь случилось!'}),
+   L('Пассажир',26,8,-Math.PI/2,{line:'Капитан на мостике с самого взлёта. Каюта его, поди, пустует.'}),
+   L('Бармен Сэл',35,2,Math.PI/2,{line:'Хозяин распорядился: кто принесёт свежую новость о Тесле — бокал за счёт заведения. А механик опять бормотал про резонанс. Пишет всё в блокнот и бросает его на верстаке в машинном.',look:{coat:'#ece4d4',hat:'none',hatC:'#222',skin:'#c99a76'}}),
+   L('Томми',33,7,-Math.PI/2,{talk:'boy',look:{coat:'#3a5a7a',hat:'cap',hatC:'#5a3a22',skin:'#f0d2b4'},small:1}),
+   L('Пассажир',38,6,Math.PI,{line:'В каюте капитана, говорят, хранится письмо от самого изобретателя фонографа.'}),
+   L('Миссис Ванхорн',45,23,Math.PI/2,{talk:'lady',look:{coat:'#4a1f3a',hat:'lady',hatC:'#1d1418',accent:'#c99b4c',skin:'#f0d2b4'}}),
+   L('Пассажир',42,19,0,{line:'Отсюда видно огни Атлантик-Сити. Красота, правда?'}),
+   L('Пассажирка',48,22,Math.PI*0.75,{line:'Брукс у трюма такой серьёзный. Спорим, он сорвётся с места, если что-то стрясётся?'}),
+  ];
+}
+function initGuards(){
+  const G=(name,start,wps,look)=>({kind:'guard',name,x:start.x,y:start.y,r:12,face:look,fov:80*Math.PI/180,range:250,state:'patrol',wps,homeWps:wps.map(p=>({...p})),wi:0,wait:0,path:null,repath:0,lastKnown:null,lost:0,searchT:0,searchTO:0,stun:0,informed:0,trackVisitor:false,lookC:look,lookBase:look,arrived:false,phase:Math.random()*6,bubble:null,moving:false,walk:0});
+  guards=[
+   G('Брукс',{x:48.5*T,y:13*T},[{x:48.5*T,y:13*T}],Math.PI),
+   G('Мёрфи',c(20,12),[c(13,12),c(29,13),c(43,12),c(45,5),c(43,12),c(29,13)],0),
+   G("О'Хара",c(12,2),[c(12,2),c(28,2),c(28,8),c(12,8)],0),
+  ];
+  guards[0].post=true;
+}
+function initObjs(){
+  objs=[
+   {id:'cardA',x:18*T,y:4.5*T,label:'Оставить визитку Теслы',vis:()=>S.fmt.reporter==='active'&&!S.cards.has('A'),act:()=>placeCard('A')},
+   {id:'cardB',x:25*T,y:6.5*T,label:'Оставить визитку Теслы',vis:()=>S.fmt.reporter==='active'&&!S.cards.has('B'),act:()=>placeCard('B')},
+   {id:'cardC',x:14*T,y:7.5*T,label:'Оставить визитку Теслы',vis:()=>S.fmt.reporter==='active'&&!S.cards.has('C'),act:()=>placeCard('C')},
+   {id:'lever',x:29.5*T,y:17.5*T,label:'Дёрнуть рубильник освещения',vis:()=>S.leverCd<=0,act:pullLever},
+   {id:'key',x:46*T,y:3.5*T,label:'Взять ключ от трюма',vis:()=>!S.key,act:()=>{S.key=true;sfx.pick();toast('Ключ от грузового трюма у тебя','good');floatText(P.x,P.y-30,'КЛЮЧ','#c99b4c');}},
+   {id:'idea_voice',x:43*T,y:7.5*T,label:'Прочитать письмо изобретателя',vis:()=>!S.ideas.has('voice'),act:()=>findIdea('voice')},
+   {id:'idea_reso',x:18*T,y:24.5*T,label:'Пролистать блокнот механика',vis:()=>!S.ideas.has('reso'),act:()=>findIdea('reso')},
+   {id:'idea_lure',x:38.5*T,y:23.5*T,label:'Осмотреть звенящий ящик',vis:()=>!S.ideas.has('lure'),act:()=>findIdea('lure')},
+   {id:'idea_echo',x:52.5*T,y:2.5*T,label:'Прочитать накладную',vis:()=>!S.ideas.has('echo'),act:()=>findIdea('echo')},
+   {id:'door',x:50.5*T,y:13*T,label:'Открыть трюм',vis:()=>!S.holdOpen,act:openHold},
+   {id:'phono',x:55.5*T,y:12.5*T,label:'Украсть фонограф',vis:()=>S.holdOpen&&!S.stolen,act:steal},
+  ];
+}
+function newState(){
+  S={phase:'title',form:'visitor',ego:0,earned:0,insp:0,peak:0,ideas:new Set(),key:false,cards:new Set(),fmt:{reporter:'none',boy:'none',lady:'none'},
+     metSteward:false,holdOpen:false,stolen:false,slots:[],blackout:0,leverCd:0,time:0,shows:0,chases:0,caught:0,performing:false,formCd:0,brooksLured:false,
+     tips:new Set(),room:-1,techs:new Set(),watchT:0};
+  P={x:2.5*T,y:12.5*T,r:12,face:0,moving:false,walk:0};
+  initPax();initGuards();initObjs();fx=[];parts=[];
+}
+
+// ================= AUDIO =================
+let AC=null,master=null,muted=false;
+function audioInit(){if(AC)return;try{AC=new(window.AudioContext||window.webkitAudioContext)();master=AC.createGain();master.gain.value=.45;master.connect(AC.destination);
+  const o=AC.createOscillator(),f=AC.createBiquadFilter(),g=AC.createGain();o.type='sawtooth';o.frequency.value=48;f.type='lowpass';f.frequency.value=140;g.gain.value=.05;o.connect(f);f.connect(g);g.connect(master);o.start();}catch(e){AC=null}}
+function tone(fr,d,type='sine',v=.15,slide=0){if(!AC)return;const t=AC.currentTime,o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.setValueAtTime(fr,t);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,fr+slide),t+d);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g);g.connect(master);o.start(t);o.stop(t+d+.02);}
+function noise(d,v=.12,fr=1000,q=1){if(!AC)return;const t=AC.currentTime,len=Math.floor(AC.sampleRate*d),b=AC.createBuffer(1,len,AC.sampleRate),ch=b.getChannelData(0);for(let i=0;i<len;i++)ch[i]=(Math.random()*2-1)*(1-i/len);const s=AC.createBufferSource(),f=AC.createBiquadFilter(),g=AC.createGain();s.buffer=b;f.type='bandpass';f.frequency.value=fr;f.Q.value=q;g.gain.value=v;s.connect(f);f.connect(g);g.connect(master);s.start(t);}
+const sfx={
+ alert(){tone(660,.12,'square',.08);setTimeout(()=>tone(990,.2,'square',.08),110)},
+ zap(){tone(1400,.3,'sawtooth',.09,-1200);noise(.25,.12,3200,2)},
+ cheer(){noise(.9,.16,900,.7);setTimeout(()=>noise(.5,.08,1400,.8),200)},
+ pick(){[523,659,784,1046].forEach((f,i)=>setTimeout(()=>tone(f,.16,'triangle',.09),i*65))},
+ puff(){noise(.3,.12,500,.6)},
+ ego(){[392,523,659,784,1046].forEach((f,i)=>setTimeout(()=>tone(f,.22,'square',.06),i*80))},
+ click(){tone(220,.05,'square',.06)},
+ thunk(){tone(90,.25,'sine',.2,-40);noise(.15,.1,300)},
+};
+
+// ================= DOM =================
+const $=id=>document.getElementById(id);
+const cvs=$('game'),ctx=cvs.getContext('2d'),mini=$('mini'),mctx=mini.getContext('2d');
+let DPR=1,VW=0,VH=0,ZOOM=1,cam={x:30*T,y:13*T};
+function resize(){DPR=Math.min(2,window.devicePixelRatio||1);VW=innerWidth;VH=innerHeight;cvs.width=Math.round(VW*DPR);cvs.height=Math.round(VH*DPR);cvs.style.width=VW+'px';cvs.style.height=VH+'px';ZOOM=Math.max(.62,Math.min(1.25,Math.min(VW/1250,VH/780)*1.12));}
+addEventListener('resize',resize);
+function show(id,on){$(id).hidden=!on}
+let toastTimer=0;
+function toast(text,kind=''){const d=document.createElement('div');d.className='toast '+kind;d.textContent=text;const box=$('toasts');box.appendChild(d);while(box.children.length>5)box.firstChild.remove();setTimeout(()=>d.remove(),3400);}
+let tipTimer=null;
+function tip(id,html,ms=7500){if(S.tips.has(id))return;S.tips.add(id);const t=$('tip');t.innerHTML=html;t.classList.add('show');clearTimeout(tipTimer);tipTimer=setTimeout(()=>t.classList.remove('show'),ms);}
+function floatText(x,y,text,color='#f1e8d6',size=18){fx.push({x,y,text,color,t:0,life:1.4,size});}
+
+// ================= MAP PRE-RENDER =================
+let mapImg=null;
+function renderMap(){
+  mapImg=document.createElement('canvas');mapImg.width=W*T;mapImg.height=H*T;const m=mapImg.getContext('2d');
+  const floorStyle={deck:['#5e432c','#69492f'],salon:['#4f1720','#5a1b25'],bar:['#33221a','#3c281d'],captain:['#1c3429','#213b2f'],corr:['#45311f','#4c3622'],wash:['#6b7b79','#5d6b69'],engine:['#2a2f33','#30363b'],store:['#3a2c20','#413124'],gallery:['#15363d','#193d45'],hold:['#28282e','#2d2d34']};
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+    const t=grid[y][x],px=x*T,py=y*T;
+    if(t===WALL){continue;}
+    let ri=roomGrid[y][x];let f=ri>=0?rooms[ri].f:'corr';
+    if(ri<0&&(t===DOOR||t===LOCK)){f=(x===10)?'corr':(y===10||y===15)?'corr':'corr';}
+    const pal=floorStyle[f];m.fillStyle=pal[(x+y)%2===0||f==='deck'||f==='corr'||f==='store'?0:1];
+    if(f==='deck'||f==='corr'||f==='store'){m.fillStyle=pal[(y%2)];}
+    m.fillRect(px,py,T,T);
+    m.strokeStyle='rgba(0,0,0,.22)';m.lineWidth=1;
+    if(f==='deck'||f==='corr'||f==='store'){m.beginPath();m.moveTo(px,py+T-.5);m.lineTo(px+T,py+T-.5);m.stroke();if((x+y*3)%4===0){m.beginPath();m.moveTo(px+20.5,py);m.lineTo(px+20.5,py+T);m.stroke();}}
+    if(f==='salon'||f==='gallery'||f==='captain'){m.strokeStyle='rgba(201,155,76,.13)';m.beginPath();m.moveTo(px+T/2,py+4);m.lineTo(px+T-4,py+T/2);m.lineTo(px+T/2,py+T-4);m.lineTo(px+4,py+T/2);m.closePath();m.stroke();}
+    if(f==='engine'||f==='hold'){m.strokeStyle='rgba(0,0,0,.35)';m.strokeRect(px+.5,py+.5,T-1,T-1);m.fillStyle='rgba(255,255,255,.07)';[[4,4],[T-4,4],[4,T-4],[T-4,T-4]].forEach(([a,b])=>{m.beginPath();m.arc(px+a,py+b,1.6,0,7);m.fill();});}
+    if(f==='wash'){m.strokeStyle='rgba(0,0,0,.18)';m.strokeRect(px+.5,py+.5,T/2,T/2);m.strokeRect(px+T/2+.5,py+T/2+.5,T/2-1,T/2-1);}
+    if(t===LOCK){m.fillStyle='#4a3a2a';m.fillRect(px,py,T,T);m.fillStyle='#8a6a3a';m.fillRect(px+4,py,T-8,T);m.fillStyle='#c99b4c';m.fillRect(px+T/2-3,py+(y===12?T-6:0),6,6);}
+  }
+  // carpets
+  m.fillStyle='rgba(225,37,47,.12)';m.fillRect(11*T+20,11*T+30,38*T+20,2*T-20);
+  // walls
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+    if(grid[y][x]!==WALL)continue;const px=x*T,py=y*T;
+    const outer=(x===0||y===0||x===W-1||y===H-1);
+    m.fillStyle=outer?'#1b1310':'#24180f';m.fillRect(px,py,T,T);
+    m.fillStyle='rgba(201,155,76,.55)';
+    if(y+1<H&&grid[y+1][x]!==WALL)m.fillRect(px,py+T-3,T,3);
+    if(y-1>=0&&grid[y-1][x]!==WALL)m.fillRect(px,py,T,3);
+    if(x+1<W&&grid[y][x+1]!==WALL)m.fillRect(px+T-3,py,3,T);
+    if(x-1>=0&&grid[y][x-1]!==WALL)m.fillRect(px,py,3,T);
+    const corner=(x===0||x===W-1)&&(y===0||y===H-1);
+    if(outer&&!corner&&((y===0||y===H-1)?x%3===1:y%3===1)){
+      m.fillStyle='#173a4a';const ix=(y===0||y===H-1)?px+5:px+10,iy=(y===0||y===H-1)?py+10:py+5,iw=(y===0||y===H-1)?T-10:T-20,ih=(y===0||y===H-1)?T-20:T-10;
+      m.fillRect(ix,iy,iw,ih);m.fillStyle='rgba(113,241,255,.35)';m.fillRect(ix+2,iy+2,iw/3,ih-4);m.strokeStyle='#c99b4c';m.lineWidth=2;m.strokeRect(ix,iy,iw,ih);}
+  }
+  // furniture
+  furn.forEach(f=>drawFurn(m,f));
+  // room labels painted on floor
+  m.font='600 13px Oswald, Arial Narrow, sans-serif';m.fillStyle='rgba(241,232,214,.13)';m.textAlign='left';
+  rooms.forEach(r=>{m.save();m.translate(r.x0*T+10,r.y1*T+T-10);m.fillText(r.n.toUpperCase(),0,0);m.restore();});
+}
+function drawFurn(m,f){
+  const x=f.x*T,y=f.y*T,w=f.w*T,h=f.h*T;m.save();
+  const sh=()=>{m.fillStyle='rgba(0,0,0,.35)';m.fillRect(x+5,y+6,w-4,h-4);};
+  switch(f.k){
+    case 'table':{const cx=x+w/2,cy=y+h/2,r=Math.min(w,h)/2+(f.w>1?8:2);m.fillStyle='rgba(0,0,0,.35)';m.beginPath();m.ellipse(cx+4,cy+5,r+(f.w>1?10:0),r,0,0,7);m.fill();m.fillStyle='#d8ccb2';m.beginPath();m.ellipse(cx,cy,r+(f.w>1?10:0),r,0,0,7);m.fill();m.strokeStyle='#a8977a';m.lineWidth=2;m.stroke();m.fillStyle='#c99b4c';m.beginPath();m.arc(cx,cy,4,0,7);m.fill();break;}
+    case 'bench':sh();m.fillStyle='#5a3b22';m.fillRect(x+3,y+8,w-6,h-16);m.strokeStyle='#7a5434';m.lineWidth=2;for(let i=x+8;i<x+w-4;i+=8){m.beginPath();m.moveTo(i,y+9);m.lineTo(i,y+h-9);m.stroke();}break;
+    case 'piano':sh();m.fillStyle='#0d0b0e';m.fillRect(x+2,y+2,w-4,h-6);m.fillStyle='#e8e0d0';m.fillRect(x+6,y+h-14,w-12,8);m.fillStyle='#0d0b0e';for(let i=x+8;i<x+w-6;i+=5)m.fillRect(i,y+h-14,2,5);break;
+    case 'sofa':sh();m.fillStyle='#6a1b28';m.fillRect(x+2,y+6,w-4,h-10);m.fillStyle='#4a121c';m.fillRect(x+2,y+h-12,w-4,8);m.fillStyle='#c99b4c';m.fillRect(x+2,y+6,w-4,2);break;
+    case 'counter':sh();m.fillStyle='#4a2414';m.fillRect(x,y+4,w,h-8);m.fillStyle='#c99b4c';m.fillRect(x,y+4,w,3);m.fillRect(x,y+h-7,w,3);for(let i=0;i<9;i++){m.fillStyle=['#2d6a4a','#7a1c22','#c99b4c','#3a5a7a'][i%4];m.beginPath();m.arc(x+14+i*30,y+h/2,4,0,7);m.fill();}break;
+    case 'desk':sh();m.fillStyle='#4a2c18';m.fillRect(x+2,y+4,w-4,h-8);m.fillStyle='#e8e0d0';m.save();m.translate(x+22,y+h/2);m.rotate(-.2);m.fillRect(-8,-6,16,12);m.restore();m.fillStyle='#e8e0d0';m.fillRect(x+44,y+12,14,10);break;
+    case 'shelf':m.fillStyle='#2e1d10';m.fillRect(x,y,w,h-6);for(let i=0;i<w-8;i+=6){m.fillStyle=['#7a1c22','#2d4a6a','#c99b4c','#3a5a3a','#5a3a5a'][(i/6|0)%5];m.fillRect(x+4+i,y+4,5,h-14);}break;
+    case 'maptable':sh();m.fillStyle='#4a2c18';m.fillRect(x+2,y+4,w-4,h-8);m.fillStyle='#d8c79c';m.fillRect(x+8,y+8,w-16,h-16);m.strokeStyle='rgba(122,28,34,.6)';m.beginPath();m.moveTo(x+14,y+26);m.bezierCurveTo(x+30,y+10,x+50,y+30,x+66,y+14);m.stroke();break;
+    case 'bed':sh();m.fillStyle='#3a2a1a';m.fillRect(x+2,y+2,w-4,h-4);m.fillStyle='#2d4a5a';m.fillRect(x+6,y+26,w-12,h-32);m.fillStyle='#e8e0d0';m.fillRect(x+10,y+8,w-20,16);break;
+    case 'sink':m.fillStyle='#d8d8d0';m.beginPath();m.ellipse(x+T/2,y+T/2+4,14,11,0,0,7);m.fill();m.fillStyle='#8aa';m.beginPath();m.ellipse(x+T/2,y+T/2+4,8,6,0,0,7);m.fill();break;
+    case 'stall':m.fillStyle='#4a5654';m.fillRect(x,y,w,h);m.fillStyle='#5f6d6b';m.fillRect(x+4,y+4,w-8,h-8);m.fillStyle='#c99b4c';m.fillRect(x+4,y+h/2,4,8);break;
+    case 'engine':{m.fillStyle='rgba(0,0,0,.4)';m.fillRect(x+6,y+8,w,h);m.fillStyle='#3b4247';m.fillRect(x,y,w,h);m.strokeStyle='#596268';m.lineWidth=3;m.strokeRect(x+3,y+3,w-6,h-6);
+      for(let i=0;i<3;i++){const cx=x+48+i*92,cy=y+h/2;m.fillStyle='#25292c';m.beginPath();m.arc(cx,cy,34,0,7);m.fill();m.strokeStyle='#c99b4c';m.lineWidth=3;m.beginPath();m.arc(cx,cy,34,0,7);m.stroke();m.fillStyle='#596268';m.beginPath();m.arc(cx,cy,14,0,7);m.fill();}
+      m.strokeStyle='#7a5434';m.lineWidth=8;m.beginPath();m.moveTo(x+w,y+30);m.lineTo(x+w+30,y+30);m.lineTo(x+w+30,y-34);m.stroke();break;}
+    case 'lever':m.fillStyle='#2a2f33';m.fillRect(x+6,y+4,T-12,T-8);m.strokeStyle='#c99b4c';m.lineWidth=2;m.strokeRect(x+6,y+4,T-12,T-8);break;
+    case 'workbench':sh();m.fillStyle='#5a3b22';m.fillRect(x+2,y+6,w-4,h-10);m.fillStyle='#8a8a90';m.fillRect(x+10,y+12,16,4);m.fillRect(x+50,y+14,6,10);break;
+    case 'crate':for(let yy=0;yy<f.h;yy++)for(let xx=0;xx<f.w;xx++){const cx=x+xx*T,cy=y+yy*T;m.fillStyle='rgba(0,0,0,.35)';m.fillRect(cx+5,cy+6,T-4,T-4);m.fillStyle='#6b4b2b';m.fillRect(cx+2,cy+2,T-4,T-4);m.strokeStyle='#4a321b';m.lineWidth=3;m.strokeRect(cx+4,cy+4,T-8,T-8);m.beginPath();m.moveTo(cx+5,cy+5);m.lineTo(cx+T-5,cy+T-5);m.stroke();}break;
+    case 'pedestal':m.fillStyle='rgba(0,0,0,.4)';m.beginPath();m.arc(x+T/2+4,y+T/2+5,19,0,7);m.fill();m.fillStyle='#4a2c18';m.beginPath();m.arc(x+T/2,y+T/2,18,0,7);m.fill();m.strokeStyle='#c99b4c';m.lineWidth=3;m.stroke();break;
+  }
+  m.restore();
+}
+
+// ================= GAME LOGIC =================
+function addEgo(n,label){
+  const before=Math.floor(S.earned/100);S.ego=Math.min(500,S.ego+n);S.earned+=n;S.peak=Math.max(S.peak,S.ego);
+  const after=Math.floor(S.earned/100);
+  if(after>before){S.insp+=after-before;toast('Новый уровень эгоизма! +1 вдохновение','ego');sfx.ego();floatText(P.x,P.y-46,'+1 ВДОХНОВЕНИЕ','#c99b4c',20);}
+  if(label)floatText(P.x,P.y-30,label,'#e1252f',18);
+  if(S.ego>=30)tip('craft','<b>C — мастерская.</b> Эгоизм тратится на прототипы. Шокер спасёт, если тебя схватят; искровой фонтан — для эффектного шоу и побега.');
+}
+function canSee(o,x,y){
+  if(o.blind>0||o.stun>0)return false;
+  let range=o.range;
+  if(S.blackout>0&&o.room!=null&&rooms[o.room]&&rooms[o.room].dark)range=o.kind==='guard'?55:40;
+  const dx=x-o.x,dy=y-o.y,d=Math.hypot(dx,dy);if(d>range)return false;
+  if(d>36){const a=angN(Math.atan2(dy,dx)-o.face);if(Math.abs(a)>o.fov/2)return false;}
+  return los(o.x,o.y,x,y);
+}
+function anyoneSees(){for(const o of pax)if(canSee(o,P.x,P.y))return o;for(const g of guards)if(canSee(g,P.x,P.y))return g;return null;}
+function toggleForm(){
+  if(S.formCd>0)return;S.formCd=.45;
+  const witness=anyoneSees();
+  puff(P.x,P.y);sfx.puff();
+  if(S.form==='visitor'){S.form='tesla';
+    tip('tesla','<b>Облик Теслы.</b> Можно трогать предметы. <b>Жёлтые</b> конусы — взгляды публики: заметят — начнётся выступление, эгоизм пойдёт вверх. <b>Красные</b> — охрана: догонит — конец.',9000);
+    if(witness)toast('Превращение видели! Публика в восторге','bad');
+  } else {S.form='visitor';
+    const paxWit=pax.some(o=>canSee(o,P.x,P.y));
+    for(const g of guards){if(g.state==='chase'){g.trackVisitor=canSee(g,P.x,P.y);if(paxWit)g.informed=2.5;}}
+    if(witness)toast('Тебя видели при переодевании','bad');
+  }
+}
+function puff(x,y){for(let i=0;i<22;i++){const a=Math.random()*7,s=rnd(30,110);parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rnd(.4,.8),t:0,c:'rgba(200,190,210,',sz:rnd(5,11),drag:3});}}
+function sparks(x,y,n=24,col='rgba(113,241,255,'){for(let i=0;i<n;i++){const a=Math.random()*7,s=rnd(80,320);parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rnd(.3,.9),t:0,c:col,sz:rnd(2,4),drag:2,spark:1});}}
+function placeCard(id){
+  if(anyoneSees()){toast('Кто-то смотрит! Визитка должна появиться загадочно','bad');return;}
+  S.cards.add(id);sfx.click();floatText(P.x,P.y-30,'ВИЗИТКА '+S.cards.size+'/3','#71f1ff');
+  if(S.cards.size>=3){S.fmt.reporter='done';addEgo(40,'+40 ФОРМАТ');toast('Формат выполнен: визитки без свидетелей. +40 эгоизма','good');const r=pax.find(p=>p.talk==='reporter');r.bubble={t:'Тесла на борту!!!',life:3.5};sfx.cheer();}
+}
+function pullLever(){
+  S.blackout=9;S.leverCd=16;sfx.thunk();toast('Свет в салоне и баре погас на 9 секунд','good');
+  for(const o of pax)if(o.room!=null&&rooms[o.room]&&rooms[o.room].dark)o.bubble={t:'?!',life:2};
+  if(S.fmt.boy==='active'){S.fmt.boy='done';setTimeout(()=>{addEgo(35,'+35 ФОРМАТ');toast('Формат выполнен: Томми видел «щелчок Теслы». +35 эгоизма','good');const b=pax.find(p=>p.talk==='boy');b.bubble={t:'Это Тесла!!!',life:3};},700);}
+}
+function findIdea(id){S.ideas.add(id);sfx.pick();const I=IDEAS[id];
+  openDialog([{who:'Идея найдена',sub:I.where,text:'<b>'+I.name+'.</b> '+I.idea,inner:false},{who:'Тесла',text:'Пока это только догадка учёного. Когда фонограф будет у меня, я пойму, как её воплотить.',inner:true,tesla:true}]);}
+function openHold(){
+  if(!S.key){toast('Заперто. Ключ — в каюте капитана','bad');sfx.click();return;}
+  S.holdOpen=true;grid[12][50]=DOOR;grid[13][50]=DOOR;renderMap();sfx.thunk();toast('Трюм открыт','good');
+}
+function steal(){S.stolen=true;sfx.pick();sparks(55.5*T,12.5*T,40);S.phase='outro';
+  floatText(P.x,P.y-36,'ФОНОГРАФ','#71f1ff',24);
+  setTimeout(()=>{$('fade').style.opacity=1;setTimeout(()=>{openResearch();$('fade').style.opacity=0;},850);},900);}
+function useSlot(i){
+  if(S.phase!=='play')return;const it=S.slots[i];if(!it)return;
+  if(S.form!=='tesla'){toast('В облике посетителя изобретения недоступны','bad');return;}
+  if(it==='shock'){const g=guards.filter(g=>g.stun<=0&&dist(g,P)<80).sort((a,b)=>dist(a,P)-dist(b,P))[0];if(!g){toast('Шокер бьёт только вплотную к охраннику','bad');return;}
+    S.slots.splice(i,1);stunGuard(g,5);}
+  else if(it==='spark'){S.slots.splice(i,1);sfx.zap();sfx.cheer();sparks(P.x,P.y,70);sparks(P.x,P.y,30,'rgba(201,155,76,');
+    const vw=pax.filter(o=>o.blind<=0&&dist(o,P)<300&&los(o.x,o.y,P.x,P.y));
+    addEgo(vw.length?15+18*Math.min(3,vw.length):5,vw.length?'ШОУ! +'+(15+18*Math.min(3,vw.length)):'');
+    if(vw.length)S.shows++;
+    for(const o of pax)if(dist(o,P)<260&&los(o.x,o.y,P.x,P.y)){o.blind=3;o.bubble={t:'Ах!',life:1.5};}
+    for(const g of guards)if(dist(g,P)<260&&los(g.x,g.y,P.x,P.y)){g.stun=Math.max(g.stun,2.6);g.bubble={t:'Глаза!',life:1.5};}
+  }
+}
+function stunGuard(g,t){g.stun=t;sfx.zap();sparks(g.x,g.y,30);g.bubble={t:'ZZT!',life:1.2};floatText(g.x,g.y-30,'ОГЛУШЁН','#71f1ff');}
+function caught(g){
+  const si=S.slots.indexOf('shock');
+  if(si>=0){S.slots.splice(si,1);stunGuard(g,5);toast('Шокер сработал! '+g.name+' оглушён на 5 секунд','good');return;}
+  S.caught++;S.phase='fail';$('failText').textContent='«Попался, фокусник!» — '+g.name+' крепко держит Теслу за воротник.';sfx.alert();show('fail',true);
+}
+function resetAfterFail(){
+  S.ego=0;S.form='visitor';S.blackout=0;S.performing=false;P.x=2.5*T;P.y=12.5*T;initGuards();
+  for(const o of pax){o.blind=0;o.face=o.home;}
+  show('fail',false);S.phase='play';toast('Снова на палубе. Эгоизм сброшен','bad');
+}
+function settle(g){
+  const lk=g.lastKnown;const ri=roomAtPx(lk.x,lk.y);
+  const pts=[{x:lk.x,y:lk.y}];
+  if(ri>=0){const r=rooms[ri];let tries=0;while(pts.length<3&&tries<60){tries++;const tx=Math.floor(rnd(r.x0,r.x1+1)),ty=Math.floor(rnd(r.y0,r.y1+1));if(Math.abs(tx*T-lk.x)>6*T)continue;if(!solidT(tAt(tx,ty)))pts.push(c(tx,ty));}}
+  g.wps=pts;g.wi=0;g.wait=1;g.state='patrol';g.path=null;g.arrived=false;g.bubble={t:'Хм…',life:1.6};g.post=false;
+  const moved=dist(lk,g.homeWps[0])>4*T;
+  if(moved){toast(g.name+' теперь караулит: '+(ri>=0?rooms[ri].n:'коридор'),'');}
+  if(g===guards[0]&&dist(lk,{x:48.5*T,y:13*T})>6*T)S.brooksLured=true;
+}
+function moveGuardTo(g,target,speed,dt){
+  if(dist(g,target)<6){g.moving=false;return true;}
+  g.repath-=dt;
+  if(!g.path||g.repath<=0){const p=bfs(Math.floor(g.x/T),Math.floor(g.y/T),Math.floor(target.x/T),Math.floor(target.y/T));g.path=p?p.concat([{x:target.x,y:target.y}]):null;g.repath=.35;}
+  let n=target;
+  if(g.path&&g.path.length){let it=0;while(g.path.length>1&&it<3&&clearLine(g.x,g.y,g.path[1].x,g.path[1].y,g.r)){g.path.shift();it++;}
+    if(g.path.length>1&&dist(g,g.path[0])<5)g.path.shift();n=g.path[0];}
+  const dx=n.x-g.x,dy=n.y-g.y,d=Math.hypot(dx,dy)||1,st=Math.min(d,speed*dt);
+  const ox=g.x,oy=g.y;moveEnt(g,dx/d*st,dy/d*st);
+  if(Math.hypot(g.x-ox,g.y-oy)<st*.3){g.repath=0;g.x+=rnd(-1,1);g.y+=rnd(-1,1);if(collides(g.x,g.y,g.r)){g.x=ox;g.y=oy;}}
+  g.face=lerpA(g.face,Math.atan2(dy,dx),dt*9);g.moving=true;g.walk+=dt;return false;
+}
+function knows(g){
+  const see=canSee(g,P.x,P.y);
+  if(S.form==='tesla')return see||(S.performing&&dist(g,P)<560&&g.stun<=0)||g.informed>0;
+  if(g.state==='chase')return (g.trackVisitor&&see)||g.informed>0;
+  return false;
+}
+function updateGuard(g,dt){
+  g.informed=Math.max(0,g.informed-dt);g.room=roomAtPx(g.x,g.y);
+  if(g.stun>0){g.stun-=dt;g.moving=false;return;}
+  const k=knows(g);
+  if(k&&S.form==='tesla'&&g.state!=='chase'){g.state='chase';g.path=null;g.bubble={t:'!',life:1.2,big:1};sfx.alert();S.chases++;
+    tip('chase','<b>Погоня!</b> Убеги из поля зрения и смени облик (R) там, где никто не видит. Охранник останется караулить место, где потерял Теслу, — так его можно увести с поста.',10000);}
+  if(g.state==='chase'){
+    if(k){g.lastKnown={x:P.x,y:P.y};g.lost=0;}else{g.lost+=dt;if(g.lost>.5){g.state='search';g.searchT=0;g.searchTO=0;g.path=null;g.bubble={t:'?',life:2,big:1};}}
+    if(g.lastKnown)moveGuardTo(g,g.lastKnown,140,dt);
+    if(k&&dist(g,P)<26&&S.phase==='play')caught(g);
+  } else if(g.state==='search'){
+    const arr=moveGuardTo(g,g.lastKnown,100,dt);g.searchTO+=dt;
+    if(arr){g.searchT+=dt;g.face+=Math.sin(S.time*2.4+g.phase)*dt*3.2;}
+    if(g.searchT>3.2||g.searchTO>9)settle(g);
+  } else {
+    const wp=g.wps[g.wi];const arr=moveGuardTo(g,wp,66,dt);
+    if(arr){if(!g.arrived){g.arrived=true;g.lookC=g.post?g.lookBase:g.face;g.wait=rnd(1.3,2.6);}
+      g.face=lerpA(g.face,g.lookC+Math.sin(S.time*.9+g.phase)*(g.post?.75:1.1),dt*3);
+      g.wait-=dt;if(g.wait<=0&&g.wps.length>1){g.wi=(g.wi+1)%g.wps.length;g.path=null;g.arrived=false;}}
+  }
+}
+function updatePax(o,dt){
+  o.blind=Math.max(0,o.blind-dt);o.room=roomAtPx(o.x,o.y);
+  o.sees=S.form==='tesla'&&canSee(o,P.x,P.y);
+  if(o.sees){o.face=lerpA(o.face,Math.atan2(P.y-o.y,P.x-o.x),dt*5);if(Math.random()<dt*.8)o.bubble={t:['Браво!','Это он!','Тесла!!','Ах!','Невероятно!'][Math.floor(Math.random()*5)],life:1.3};}
+  else{o.turnT-=dt;if(o.turnT<=0){o.turnT=rnd(2.2,5);o.tFace=o.home+rnd(-1.4,1.4)*(o.spin==null?1:o.spin)+(Math.random()<.25?Math.PI:0);}o.face=lerpA(o.face,o.tFace,dt*2.2);}
+}
+function nearestInteract(){
+  let best=null,bd=1e9;
+  for(const o of pax){if(!o.talk&&!o.line)continue;const d=dist(o,P);if(d<54&&d<bd){bd=d;best={type:'npc',o};}}
+  for(const ob of objs){if(!ob.vis())continue;const d=dist(ob,P);if(d<58&&d<bd){bd=d;best={type:'obj',o:ob};}}
+  return best;
+}
+function interact(){
+  const it=nearestInteract();if(!it)return;
+  if(it.type==='npc'){if(S.form!=='visitor'){toast('Тесла не болтает с публикой — смени облик (R)','bad');return;}talkTo(it.o);}
+  else{if(S.form!=='tesla'){toast('Посетитель не трогает чужие вещи — нужен облик Теслы (R)','bad');return;}it.o.act();}
+}
+function update(dt){
+  S.time+=dt;S.formCd=Math.max(0,S.formCd-dt);S.leverCd=Math.max(0,S.leverCd-dt);
+  if(S.blackout>0)S.blackout=Math.max(0,S.blackout-dt);
+  // move
+  let mx=(K.KeyD||K.ArrowRight?1:0)-(K.KeyA||K.ArrowLeft?1:0),my=(K.KeyS||K.ArrowDown?1:0)-(K.KeyW||K.ArrowUp?1:0);
+  P.moving=!!(mx||my);
+  if(P.moving){const l=Math.hypot(mx,my);mx/=l;my/=l;moveEnt(P,mx*168*dt,my*168*dt);P.face=lerpA(P.face,Math.atan2(my,mx),dt*14);P.walk+=dt;}
+  const ri=roomAtPx(P.x,P.y);if(ri>=0&&ri!==S.room){S.room=ri;$('roomName').textContent=rooms[ri].n;if(rooms[ri].staff&&S.form==='visitor'&&!S.tips.has('staff'))tip('staff','<b>'+rooms[ri].n+'.</b> Пассажирам сюда нельзя, но в облике посетителя охрана не обращает внимания. Здесь хорошо переодеваться — если никто не смотрит.');}
+  // pax
+  const watchers=[];for(const o of pax){updatePax(o,dt);if(o.sees)watchers.push(o);}
+  const perf=watchers.length>0;
+  if(perf&&!S.performing){S.shows++;addEgo(10,'ТЕСЛА!');sfx.cheer();}
+  S.performing=perf;
+  if(perf){addEgo(6*Math.min(3,watchers.length)*dt);S.watchT+=dt;}
+  if(S.fmt.lady==='active'){const l=pax.find(p=>p.talk==='lady');if(l.sees){S.fmt.lady='done';addEgo(30,'+30 ФОРМАТ');toast('Формат выполнен: Миссис Ванхорн увидела Теслу. +30 эгоизма','good');l.bubble={t:'Это ОН!!!',life:3};}}
+  for(const g of guards)updateGuard(g,dt);
+  // fx
+  for(const p of parts){p.t+=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=1-p.drag*dt;p.vy*=1-p.drag*dt;}
+  parts=parts.filter(p=>p.t<p.life);
+  for(const f of fx){f.t+=dt;f.y-=28*dt;}fx=fx.filter(f=>f.t<f.life);
+  for(const e of [...pax,...guards])if(e.bubble){e.bubble.life-=dt;if(e.bubble.life<=0)e.bubble=null;}
+  if(S.time>6&&!S.metSteward)tip('steward','Поговори со <b>стюардом</b> в центре палубы — подойди и нажми <b>E</b>.');
+}
+
+// ================= DIALOGS =================
+let dlg=null;
+function openDialog(lines,onEnd){S.prev=S.phase==='play'?'play':S.prev;dlg={lines,i:0,onEnd,shown:0,full:false};S.phase='dialog';show('dialog',true);renderLine();}
+function renderLine(){const L=dlg.lines[dlg.i];$('dlgWhoT').innerHTML=L.who+(L.sub?'<small>'+L.sub+'</small>':'');$('dlgWho').className='who'+(L.tesla?' tesla':'');$('dlgBox').className='box'+(L.inner?' inner':'');dlg.shown=0;dlg.full=false;dlg.text=L.text;$('dlgBox').innerHTML='';}
+function dlgTick(dt){if(!dlg||dlg.full)return;dlg.shown+=dt*70;const plain=dlg.text;if(dlg.shown>=plain.replace(/<[^>]+>/g,'').length){dlg.full=true;$('dlgBox').innerHTML=plain;return;}
+  // reveal plain text progressively, then swap in markup
+  const txt=plain.replace(/<[^>]+>/g,'');$('dlgBox').textContent=txt.slice(0,Math.floor(dlg.shown));}
+function advance(){if(!dlg)return;if(!dlg.full){dlg.full=true;$('dlgBox').innerHTML=dlg.text;return;}
+  dlg.i++;if(dlg.i>=dlg.lines.length){const cb=dlg.onEnd;dlg=null;show('dialog',false);S.phase='play';cb&&cb();}else renderLine();sfx.click();}
+function talkTo(o){
+  o.face=Math.atan2(P.y-o.y,P.x-o.x);
+  const t='Тесла';
+  if(o.talk==='steward'){
+    if(S.metSteward){openDialog([{who:o.name,sub:'стюард',text:'Ключ — у капитана, Брукс — у трюма. А я ничего не говорил, сэр.'}]);return;}
+    openDialog([
+      {who:o.name,sub:'стюард',text:'Добро пожаловать на борт «Колумбии», сэр! Через час будем над Атлантик-Сити.'},
+      {who:o.name,sub:'стюард',text:'Слыхали? В трюме везут говорящую машину — фонограф. Хранит голос, как банка хранит варенье.'},
+      {who:o.name,sub:'стюард',text:'Охраняют её спустя рукава: у двери трюма стоит один Брукс. Правда, он за каждым безбилетником гоняется, как гончая, — а потом полдня торчит там, где его потерял.'},
+      {who:o.name,sub:'стюард',text:'Ключ от трюма, само собой, у капитана. Он на мостике с самого взлёта, каюта пустует. Но вы ведь спрашиваете из чистого любопытства?'},
+      {who:t,text:'Ключ в каюте капитана. Брукса нужно увести от двери. И, конечно, публика должна запомнить этот вечер.',inner:true,tesla:true},
+    ],()=>{S.metSteward=true;tip('form','<b>R — сменить облик.</b> Переодевайся там, где тебя никто не видит: в уборной, кладовой, машинном отделении. Чтобы взять ключ, нужен облик Теслы.',9000);});
+  } else if(o.talk==='reporter'){
+    if(S.fmt.reporter==='none'){openDialog([
+      {who:o.name,sub:'репортёр «Нью-Йорк Сфер»',text:'Скука смертная. Три часа полёта — и ни одной сенсации.'},
+      {who:o.name,sub:'репортёр «Нью-Йорк Сфер»',text:'Вот если бы на столиках салона вдруг появились визитки Теслы… и никто бы не видел, кто их оставил. Это первая полоса!'},
+      {who:t,text:'Три стола, три визитки, ноль свидетелей. Нужно, чтобы никто не смотрел. Или чтобы смотреть было не на что.',inner:true,tesla:true}],()=>{S.fmt.reporter='active';toast('Новый формат: визитки на столиках','good');});}
+    else if(S.fmt.reporter==='active')openDialog([{who:o.name,sub:'репортёр',text:'Пока ни одной визитки. Сенсации сами себя не пишут, знаете ли.'}]);
+    else openDialog([{who:o.name,sub:'репортёр',text:'Визитки Теслы! Прямо под носом у охраны! Лучший вечер в моей карьере.'}]);
+  } else if(o.talk==='boy'){
+    if(S.fmt.boy==='none')openDialog([
+      {who:o.name,sub:'юный пассажир',text:'Мама говорит, Тесла гасит свет щелчком пальцев! А папа говорит, что это враньё.'},
+      {who:o.name,sub:'юный пассажир',text:'Вот бы свет мигнул прямо сейчас… тогда я бы точно знал, кто прав!'},
+      {who:t,text:'Свет на дирижабле питает машинное отделение. Мой «щелчок пальцев» — это рубильник.',inner:true,tesla:true}],()=>{S.fmt.boy='active';toast('Новый формат: «щелчок Теслы»','good');});
+    else if(S.fmt.boy==='active')openDialog([{who:o.name,text:'Я жду! Я не моргаю даже!'}]);
+    else openDialog([{who:o.name,text:'Папа проиграл спор! Тесла настоящий!'}]);
+  } else if(o.talk==='lady'){
+    if(S.fmt.lady==='none')openDialog([
+      {who:o.name,sub:'путешественница',text:'Я пересекла океан ради одного — увидеть его. Самого Теслу.'},
+      {who:o.name,sub:'путешественница',text:'Говорят, он здесь, на борту. Хоть одним глазком…'},
+      {who:t,text:'Покажусь ей. Только потом придётся бежать: Брукс стоит совсем рядом.',inner:true,tesla:true}],()=>{S.fmt.lady='active';toast('Новый формат: показаться Миссис Ванхорн','good');});
+    else if(S.fmt.lady==='active')openDialog([{who:o.name,text:'Каждый раз, когда хлопает дверь, я думаю: вдруг это он?'}]);
+    else openDialog([{who:o.name,text:'Он посмотрел прямо на меня. Я этого никогда не забуду.'}]);
+  } else if(o.line){openDialog([{who:o.name,text:o.line}]);}
+}
+
+// ================= CRAFT / RESEARCH / END =================
+function openCraft(){if(S.phase!=='play')return;S.phase='craft';renderCraft();show('craft',true);}
+function closeCraft(){show('craft',false);S.phase='play';}
+function renderCraft(){
+  $('crEgo').textContent=Math.floor(S.ego);$('crSlots').textContent=3-S.slots.length;
+  $('recipes').innerHTML=Object.entries(RECIPES).map(([id,r])=>`<div class="recipe"><div class="ic">${r.ic}</div><div><h4>${r.name}<small>${r.kind}</small></h4><p>${r.desc}</p></div><button type="button" data-r="${id}" ${S.ego<r.cost||S.slots.length>=3?'disabled':''}><span>${r.cost} эго</span></button></div>`).join('');
+  $('recipes').querySelectorAll('button').forEach(b=>b.onclick=()=>{const r=RECIPES[b.dataset.r];if(S.ego<r.cost||S.slots.length>=3)return;S.ego-=r.cost;S.slots.push(b.dataset.r);sfx.pick();renderCraft();});
+}
+function openResearch(){S.phase='research';show('hud',false);renderResearch();show('research',true);}
+function renderResearch(){
+  $('rsInsp').textContent=S.insp;
+  $('ideaCards').innerHTML=Object.entries(IDEAS).map(([id,I])=>{
+    if(!S.ideas.has(id))return `<div class="idea locked"><div class="st">Идея не найдена</div><h4>???</h4><p>Где-то здесь: ${I.where.toLowerCase()}.</p></div>`;
+    if(S.techs.has(id))return `<div class="idea tech"><div class="st">Технология</div><h4>${I.name}</h4><p>${I.tech}</p></div>`;
+    return `<div class="idea"><div class="st">Теория</div><h4>${I.name}</h4><p>${I.theory}</p><button type="button" data-i="${id}" ${S.insp<1?'disabled':''}><span>Осмыслить · 1 вдохн.</span></button></div>`;}).join('');
+  $('ideaCards').querySelectorAll('button').forEach(b=>b.onclick=()=>{if(S.insp<1)return;S.insp--;S.techs.add(b.dataset.i);sfx.ego();renderResearch();});
+}
+function openEnding(){
+  show('research',false);S.phase='end';
+  let h,l;const fmtDone=Object.values(S.fmt).filter(v=>v==='done').length;
+  if(S.earned>=320){h='Тесла похитил фонограф на глазах у всего дирижабля';l='«Он раскланялся перед публикой и исчез», — пишет наш репортёр, которая лично нашла визитку на столике. Охрана «Колумбии» уверяет, что «почти его поймала».';}
+  else if(S.earned>=150){h=S.fmt.reporter==='done'?'Визитки Теслы на столиках «Колумбии»: фонограф исчез':'Вор в цилиндре обчистил трюм «Колумбии»';l='Пассажиры спорят, был ли это сам Тесла или ловкий подражатель. Мистер Эдисон от комментариев отказался, но, по слухам, разбил телефонную трубку.';}
+  else {h='С дирижабля пропал фонограф. Вора никто не заметил';l='Полиция в недоумении. Охранник Брукс награждён за бдительность: «Мимо меня и мышь не проскочит». О Тесле никто не вспомнил — слава досталась другим.';}
+  $('headline').textContent=h;$('lede').textContent=l;
+  const m=Math.floor(S.time/60),s=Math.floor(S.time%60);
+  const techPct=Math.round(S.techs.size/4*100);
+  $('stats').innerHTML=[['Время',m+':'+String(s).padStart(2,'0')],['Эгоизм за акт',Math.round(S.earned)],['Выступлений',S.shows],['Форматы',fmtDone+'/3'],['Идеи',S.ideas.size+'/4'],['Технологии',techPct+'%'+(techPct>=70?' ★':'')]].map(([a,b])=>`<div>${a}<b>${b}</b></div>`).join('');
+  show('ending',true);
+}
+
+// ================= INPUT =================
+const K={};
+addEventListener('keydown',e=>{
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault();
+  if(e.repeat&&e.code!=='KeyW'&&e.code!=='KeyA'&&e.code!=='KeyS'&&e.code!=='KeyD')return;
+  K[e.code]=true;audioInit();
+  if(e.code==='KeyM'){muted=!muted;if(master)master.gain.value=muted?0:.45;toast(muted?'Звук выключен':'Звук включён');return;}
+  if(S.phase==='dialog'){if(['KeyE','Space','Enter'].includes(e.code))advance();return;}
+  if(S.phase==='craft'){if(e.code==='KeyC'||e.code==='Escape')closeCraft();return;}
+  if(S.phase==='pause'){if(e.code==='Escape')resume();return;}
+  if(S.phase!=='play')return;
+  if(e.code==='KeyR')toggleForm();
+  else if(e.code==='KeyE')interact();
+  else if(e.code==='KeyC')openCraft();
+  else if(e.code==='Escape'){S.phase='pause';show('pause',true);}
+  else if(e.code==='Digit1')useSlot(0);else if(e.code==='Digit2')useSlot(1);else if(e.code==='Digit3')useSlot(2);
+});
+addEventListener('keyup',e=>{K[e.code]=false});
+addEventListener('blur',()=>{for(const k in K)K[k]=false});
+$('dialog').addEventListener('click',advance);
+function resume(){show('pause',false);S.phase='play';}
+$('btnStart').onclick=()=>{audioInit();show('title',false);show('intro',true);S.phase='intro';};
+$('btnRemember').onclick=()=>{show('intro',false);startPlay();};
+$('btnCraftClose').onclick=closeCraft;$('btnResume').onclick=resume;
+$('btnRestart').onclick=()=>{show('pause',false);newState();startPlay();};
+$('btnRetry').onclick=resetAfterFail;
+$('btnFinish').onclick=openEnding;
+$('btnAgain').onclick=()=>{show('ending',false);buildMap();renderMap();newState();startPlay();};
+function startPlay(){S.phase='play';show('hud',true);tip('start','<b>WASD</b> — идти. Ты в облике <b>посетителя</b>: охрана тебя не трогает, с людьми можно говорить (<b>E</b>).',7000);}
+
+// ================= HUD =================
+let hudT=0,lastTasks='';
+function updHUD(dt){
+  hudT-=dt;
+  const ft=$('formTag');ft.classList.toggle('tesla',S.form==='tesla');$('formName').textContent=S.form==='tesla'?'НИКОЛА ТЕСЛА':'ПОСЕТИТЕЛЬ';
+  const lvl=Math.min(4,Math.floor(S.ego/100));$('egoLvl').textContent=ROMAN[lvl];$('egoVal').textContent=Math.floor(S.ego)+' · всего '+Math.floor(S.earned);
+  $('egoFill').style.width=(S.ego>=500?100:(S.ego%100))+'%';
+  $('inspN').textContent=S.insp?'':'0';$('inspIcons').innerHTML='<i></i>'.repeat(Math.min(S.insp,8));
+  $('ideasN').textContent=S.ideas.size+'/4';
+  if(hudT<=0){hudT=.15;
+    const sl=[0,1,2].map(i=>{const it=S.slots[i];const r=it&&RECIPES[it];return `<div class="slot${r?' full':''}"><span class="k">${i+1}</span>${r?`<div class="n"><span class="ic">${r.ic}</span>${r.name.split(' ').pop()}</div>`:''}</div>`}).join('');
+    if($('slots').innerHTML!==sl)$('slots').innerHTML=sl;
+    const L=[];
+    L.push(`<li class="main${S.stolen?' done':''}">◆ Украсть фонограф из трюма</li>`);
+    if(!S.metSteward)L.push(`<li class="sub">Расспросить стюарда на палубе</li>`);
+    else{L.push(`<li class="sub${S.key?' done':''}">Взять ключ в каюте капитана</li>`);L.push(`<li class="sub${(S.brooksLured||S.holdOpen)?' done':''}">Увести Брукса от двери трюма</li>`);L.push(`<li class="sub${S.holdOpen?' done':''}">Открыть трюм</li>`);}
+    if(S.fmt.reporter!=='none')L.push(`<li class="fmt${S.fmt.reporter==='done'?' done':''}">Формат · визитки без свидетелей <b>${S.cards.size}/3</b></li>`);
+    if(S.fmt.boy!=='none')L.push(`<li class="fmt${S.fmt.boy==='done'?' done':''}">Формат · «щелчок Теслы» для Томми</li>`);
+    if(S.fmt.lady!=='none')L.push(`<li class="fmt${S.fmt.lady==='done'?' done':''}">Формат · показаться Миссис Ванхорн</li>`);
+    L.push(`<li class="opt">Идеи изобретателя <b>${S.ideas.size}/4</b></li>`);
+    const h=L.join('');if(h!==lastTasks){$('taskList').innerHTML=h;lastTasks=h;}
+  }
+  // prompt
+  const it=S.phase==='play'?nearestInteract():null,pr=$('prompt');
+  if(it){let ok,label;if(it.type==='npc'){ok=S.form==='visitor';label=ok?'Поговорить: '+it.o.name:'Нужен облик посетителя (R)';}else{ok=S.form==='tesla';label=ok?it.o.label:'Нужен облик Теслы (R)';}
+    pr.style.display='flex';pr.className=ok?'':'off';pr.innerHTML=`<kbd>E</kbd>${label}`;}else pr.style.display='none';
+  // status
+  const st=$('status'),chasing=guards.some(g=>g.state==='chase'),searching=guards.some(g=>g.state==='search');
+  const nW=pax.filter(o=>o.sees).length;
+  if(S.phase==='play'&&S.form==='tesla'&&nW>0){st.className='show';st.textContent='ВЫСТУПЛЕНИЕ · ЗРИТЕЛЕЙ: '+nW;}
+  else if(S.phase==='play'&&chasing){st.className='show';st.textContent='ПОГОНЯ · СКРОЙСЯ И СМЕНИ ОБЛИК';}
+  else if(S.phase==='play'&&searching){st.className='show cool';st.textContent='ОХРАНА ИЩЕТ…';}
+  else st.className='';
+  const v=$('vignette');v.style.opacity=(S.phase==='play'&&(chasing||(S.form==='tesla'&&nW>0)))?1:0;v.className=chasing?'chase':'';
+}
+function drawMini(){
+  const sx=mini.width/(W*T),sy=mini.height/(H*T);mctx.setTransform(1,0,0,1,0,0);mctx.clearRect(0,0,mini.width,mini.height);
+  mctx.fillStyle='#0c0a10';mctx.fillRect(0,0,mini.width,mini.height);
+  rooms.forEach((r,i)=>{mctx.fillStyle=i===S.room?'#5a4a3a':'#2b2530';mctx.fillRect(r.x0*T*sx,r.y0*T*sy,(r.x1-r.x0+1)*T*sx,(r.y1-r.y0+1)*T*sy);});
+  [[10,12,1,2],[50,12,1,2]].forEach(([x,y,w,h])=>{mctx.fillStyle=(x===50&&!S.holdOpen)?'#e1252f':'#2b2530';mctx.fillRect(x*T*sx,y*T*sy,w*T*sx,h*T*sy);});
+  let goal=null;if(!S.metSteward)goal=pax[0];else if(!S.key)goal={x:46*T,y:3.5*T};else if(!S.holdOpen)goal={x:50.5*T,y:13*T};else goal={x:55.5*T,y:12.5*T};
+  if(goal){const p=.5+.5*Math.sin(perfNow*6);mctx.strokeStyle='#c99b4c';mctx.lineWidth=2;mctx.beginPath();mctx.arc(goal.x*sx,goal.y*sy,5+p*4,0,7);mctx.stroke();}
+  for(const g of guards){mctx.fillStyle=g.state==='chase'?'#ff4a4a':g.stun>0?'#71f1ff':'#e1252f';mctx.beginPath();mctx.arc(g.x*sx,g.y*sy,4.5,0,7);mctx.fill();
+    mctx.fillStyle='rgba(225,37,47,.25)';mctx.beginPath();mctx.moveTo(g.x*sx,g.y*sy);mctx.arc(g.x*sx,g.y*sy,g.range*sx,g.face-g.fov/2,g.face+g.fov/2);mctx.fill();}
+  mctx.fillStyle=S.form==='tesla'?'#71f1ff':'#f1e8d6';mctx.beginPath();mctx.arc(P.x*sx,P.y*sy,5,0,7);mctx.fill();
+}
+
+// ================= RENDER =================
+const clouds=[];for(let i=0;i<46;i++)clouds.push({x:rnd(-1600,4200),y:rnd(-900,2000),r:rnd(60,190),v:rnd(18,40),a:rnd(.05,.16)});
+let perfNow=0;
+function drawPerson(e,look,opt={}){
+  ctx.save();ctx.translate(e.x,e.y);
+  ctx.fillStyle='rgba(0,0,0,.38)';ctx.beginPath();ctx.ellipse(3,6,15,11,0,0,7);ctx.fill();
+  const sc=opt.small?.82:1;ctx.scale(sc,sc);ctx.rotate(e.face);
+  if(e.moving){const s=Math.sin(e.walk*13)*5;ctx.fillStyle='#0d0b0e';ctx.beginPath();ctx.arc(4+s,-6,3.4,0,7);ctx.fill();ctx.beginPath();ctx.arc(4-s,6,3.4,0,7);ctx.fill();}
+  ctx.fillStyle=look.coat;ctx.beginPath();ctx.ellipse(0,0,9.5,14.5,0,0,7);ctx.fill();ctx.strokeStyle='rgba(0,0,0,.55)';ctx.lineWidth=1.5;ctx.stroke();
+  if(look.hat==='top'){ctx.fillStyle='#e1252f';ctx.beginPath();ctx.moveTo(6,-3);ctx.lineTo(12,0);ctx.lineTo(6,3);ctx.fill();}
+  ctx.fillStyle=look.skin;ctx.beginPath();ctx.arc(8,-12,3,0,7);ctx.fill();ctx.beginPath();ctx.arc(8,12,3,0,7);ctx.fill();
+  if(look.hat==='top'){ctx.fillStyle='#0a090c';ctx.beginPath();ctx.arc(0,0,10.5,0,7);ctx.fill();ctx.fillStyle='#1f1c26';ctx.beginPath();ctx.arc(0,0,7,0,7);ctx.fill();ctx.strokeStyle='#e1252f';ctx.lineWidth=1.6;ctx.beginPath();ctx.arc(0,0,7,0,7);ctx.stroke();ctx.fillStyle='rgba(255,255,255,.12)';ctx.beginPath();ctx.arc(-2,-2,3,0,7);ctx.fill();}
+  else if(look.hat==='bowler'){ctx.fillStyle=look.hatC;ctx.beginPath();ctx.arc(0,0,9,0,7);ctx.fill();ctx.fillStyle='rgba(255,255,255,.1)';ctx.beginPath();ctx.arc(-1,-1,6,0,7);ctx.fill();}
+  else if(look.hat==='cap'){ctx.fillStyle=look.hatC;ctx.beginPath();ctx.arc(0,0,7.6,0,7);ctx.fill();ctx.fillRect(4,-6,6,12);ctx.fillStyle='#c99b4c';ctx.beginPath();ctx.arc(3,0,1.8,0,7);ctx.fill();}
+  else if(look.hat==='lady'){ctx.fillStyle=look.hatC;ctx.beginPath();ctx.arc(0,0,12,0,7);ctx.fill();ctx.fillStyle=look.accent||'#c99b4c';ctx.beginPath();ctx.ellipse(-3,-6,8,2.6,-.5,0,7);ctx.fill();ctx.fillStyle='rgba(255,255,255,.1)';ctx.beginPath();ctx.arc(0,0,7,0,7);ctx.fill();}
+  else {ctx.fillStyle=look.skin;ctx.beginPath();ctx.arc(0,0,7,0,7);ctx.fill();ctx.fillStyle='#2a1a12';ctx.beginPath();ctx.arc(-2,0,6,Math.PI*.5,Math.PI*1.5);ctx.fill();}
+  ctx.restore();
+}
+function coneRange(o){if(S.blackout>0&&o.room!=null&&rooms[o.room]&&rooms[o.room].dark)return o.kind==='guard'?55:40;return o.range;}
+function drawCone(o,rgb,alpha){
+  if(o.blind>0||o.stun>0)return;const R=coneRange(o),N=24;
+  const g=ctx.createRadialGradient(o.x,o.y,10,o.x,o.y,R);g.addColorStop(0,`rgba(${rgb},${alpha})`);g.addColorStop(1,`rgba(${rgb},0)`);
+  ctx.fillStyle=g;ctx.beginPath();ctx.moveTo(o.x,o.y);
+  for(let i=0;i<=N;i++){const a=o.face-o.fov/2+o.fov*i/N,cx=Math.cos(a),sy=Math.sin(a);let r=0;while(r<R){r+=10;if(sightT(tAt(Math.floor((o.x+cx*r)/T),Math.floor((o.y+sy*r)/T)))){r-=4;break;}}ctx.lineTo(o.x+cx*r,o.y+sy*r);}
+  ctx.closePath();ctx.fill();
+}
+function bolt(x1,y1,x2,y2,col,w){ctx.strokeStyle=col;ctx.lineWidth=w;ctx.beginPath();ctx.moveTo(x1,y1);const n=5;for(let i=1;i<n;i++){const t=i/n;ctx.lineTo(x1+(x2-x1)*t+rnd(-6,6),y1+(y2-y1)*t+rnd(-6,6));}ctx.lineTo(x2,y2);ctx.stroke();}
+const lamps=[[15,3,1],[21,5,1],[26,3,1],[35,5,2],[45,5,3],[15,12.5,4],[25,12.5,4],[35,12.5,4],[45,12.5,4],[13,20,5],[23,17,6],[18,21,6],[35,21,7],[45,19,8],[55,8,9],[55,17,9],[5,6,0],[5,18,0]];
+function render(dt){
+  perfNow+=dt;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  const sky=ctx.createLinearGradient(0,0,0,VH);sky.addColorStop(0,'#0d1630');sky.addColorStop(.6,'#2a2648');sky.addColorStop(1,'#5a3a4e');ctx.fillStyle=sky;ctx.fillRect(0,0,VW,VH);
+  // camera
+  let tx,ty;
+  if(S.phase==='title'||S.phase==='intro'){tx=30*T+Math.sin(perfNow*.12)*16*T;ty=13*T+Math.sin(perfNow*.2)*3*T;}else{tx=P.x;ty=P.y;}
+  cam.x+=(tx-cam.x)*Math.min(1,dt*5);cam.y+=(ty-cam.y)*Math.min(1,dt*5);
+  // clouds (parallax, below)
+  for(const cl of clouds){const px=((cl.x-perfNow*cl.v-cam.x*.55)%5800+5800)%5800-1400,py=cl.y-cam.y*.55;const sx=px*ZOOM*.7+VW/2*.3,sy=py*ZOOM*.7+VH*.25;const g=ctx.createRadialGradient(sx,sy,0,sx,sy,cl.r*ZOOM);g.addColorStop(0,`rgba(200,190,220,${cl.a})`);g.addColorStop(1,'rgba(200,190,220,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(sx,sy,cl.r*ZOOM,0,7);ctx.fill();}
+  ctx.setTransform(DPR*ZOOM,0,0,DPR*ZOOM,(VW/2-cam.x*ZOOM)*DPR,(VH/2-cam.y*ZOOM)*DPR);
+  // ship hull shadow + rigging
+  ctx.fillStyle='rgba(0,0,0,.35)';ctx.fillRect(30,40,W*T+10,H*T+10);
+  ctx.strokeStyle='rgba(201,155,76,.35)';ctx.lineWidth=3;for(let i=0;i<=6;i++){const x=i*W*T/6;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x+(i-3)*30,-160);ctx.stroke();ctx.beginPath();ctx.moveTo(x,H*T);ctx.lineTo(x+(i-3)*30,H*T+160);ctx.stroke();}
+  // bow
+  ctx.fillStyle='#1b1310';ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(-120,H*T/2);ctx.lineTo(0,H*T);ctx.fill();ctx.strokeStyle='#c99b4c';ctx.lineWidth=3;ctx.stroke();
+  // propellers
+  for(const py of [5*T,21*T]){ctx.save();ctx.translate(W*T+70,py);ctx.fillStyle='#2a2a30';ctx.fillRect(-70,-14,70,28);ctx.rotate(perfNow*18);ctx.fillStyle='rgba(180,180,190,.5)';ctx.fillRect(-6,-70,12,140);ctx.fillRect(-70,-6,140,12);ctx.fillStyle='#c99b4c';ctx.beginPath();ctx.arc(0,0,10,0,7);ctx.fill();ctx.restore();}
+  if(mapImg)ctx.drawImage(mapImg,0,0);
+  // dynamic map bits
+  const eg=.5+.5*Math.sin(perfNow*7);ctx.fillStyle=`rgba(255,120,40,${.15+eg*.2})`;for(let i=0;i<3;i++){ctx.beginPath();ctx.arc(20*T+48+i*92,20*T,10,0,7);ctx.fill();}
+  // lever
+  ctx.save();ctx.translate(29.5*T,17.5*T);ctx.rotate(S.blackout>0?.8:-.8);ctx.strokeStyle='#c9c9d0';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(0,-14);ctx.stroke();ctx.fillStyle='#e1252f';ctx.beginPath();ctx.arc(0,-15,4,0,7);ctx.fill();ctx.restore();
+  // key on desk
+  if(!S.key){ctx.save();ctx.translate(46*T+4,3.5*T);ctx.fillStyle='#e8c060';ctx.beginPath();ctx.arc(-6,0,5,0,7);ctx.fill();ctx.fillRect(-2,-1.5,14,3);ctx.fillRect(8,0,3,5);ctx.restore();}
+  // phonograph
+  if(!S.stolen){ctx.save();ctx.translate(55.5*T,12.5*T);ctx.fillStyle='#3a2414';ctx.fillRect(-10,-8,20,16);ctx.fillStyle='#c99b4c';ctx.beginPath();ctx.moveTo(-2,-2);ctx.lineTo(16,-20);ctx.quadraticCurveTo(26,-6,24,6);ctx.closePath();ctx.fill();ctx.strokeStyle='#7a5a2a';ctx.lineWidth=1.5;ctx.stroke();ctx.fillStyle='#1a1a1a';ctx.beginPath();ctx.arc(-3,2,5,0,7);ctx.fill();ctx.restore();
+    const gl=ctx.createRadialGradient(55.5*T,12.5*T,0,55.5*T,12.5*T,60);gl.addColorStop(0,`rgba(201,155,76,${.25+.1*Math.sin(perfNow*3)})`);gl.addColorStop(1,'rgba(201,155,76,0)');ctx.fillStyle=gl;ctx.beginPath();ctx.arc(55.5*T,12.5*T,60,0,7);ctx.fill();}
+  // placed cards
+  const cardPos={A:[18*T,4.5*T],B:[25*T,6.5*T],C:[14*T,7.5*T]};for(const k of S.cards){const [x,y]=cardPos[k];ctx.save();ctx.translate(x-8,y-2);ctx.rotate(-.2);ctx.fillStyle='#fff';ctx.fillRect(0,0,14,9);ctx.fillStyle='#e1252f';ctx.fillRect(2,3,10,2);ctx.restore();}
+  // interactables glint
+  for(const ob of objs){if(!ob.vis()||ob.id==='lever'&&S.form!=='tesla'&&false)continue;const p=.5+.5*Math.sin(perfNow*4+ob.x);ctx.strokeStyle=ob.id.startsWith('idea')?`rgba(201,155,76,${.4+p*.5})`:`rgba(113,241,255,${.3+p*.5})`;ctx.lineWidth=2;ctx.save();ctx.translate(ob.x,ob.y);ctx.rotate(Math.PI/4);ctx.strokeRect(-7-p*3,-7-p*3,14+p*6,14+p*6);ctx.restore();
+    if(ob.id.startsWith('idea')){ctx.fillStyle='#e8e0d0';ctx.fillRect(ob.x-6,ob.y-4,12,8);ctx.fillStyle='#7a1c22';ctx.fillRect(ob.x-4,ob.y-2,8,1.5);}}
+  // cones
+  const tes=S.form==='tesla';
+  for(const o of pax)drawCone(o,'255,214,110',tes?.2:.07);
+  for(const g of guards)drawCone(g,g.state==='chase'?'255,60,60':'225,37,47',tes?.3:.12);
+  // guard lanterns
+  for(const g of guards){if(g.stun>0)continue;const lx=g.x+Math.cos(g.face)*14,ly=g.y+Math.sin(g.face)*14;const gl=ctx.createRadialGradient(lx,ly,0,lx,ly,40);gl.addColorStop(0,'rgba(255,200,120,.35)');gl.addColorStop(1,'rgba(255,200,120,0)');ctx.fillStyle=gl;ctx.beginPath();ctx.arc(lx,ly,40,0,7);ctx.fill();}
+  // characters
+  for(const o of pax)drawPerson(o,o.look,{small:o.small});
+  for(const g of guards){drawPerson(g,LOOKS.guard);if(g.stun>0){for(let i=0;i<3;i++){const a=perfNow*4+i*2.1;ctx.fillStyle='#71f1ff';ctx.beginPath();ctx.arc(g.x+Math.cos(a)*14,g.y-4+Math.sin(a)*6,2.5,0,7);ctx.fill();}}}
+  if(S.form==='tesla'){const gl=ctx.createRadialGradient(P.x,P.y,0,P.x,P.y,46);gl.addColorStop(0,'rgba(113,241,255,.35)');gl.addColorStop(1,'rgba(113,241,255,0)');ctx.fillStyle=gl;ctx.beginPath();ctx.arc(P.x,P.y,46,0,7);ctx.fill();}
+  drawPerson(P,S.form==='tesla'?LOOKS.tesla:LOOKS.visitor);
+  if(S.form==='tesla'&&Math.random()<.6){const a=Math.random()*7;bolt(P.x+Math.cos(a)*10,P.y+Math.sin(a)*10,P.x+Math.cos(a)*rnd(22,34),P.y+Math.sin(a)*rnd(22,34),'rgba(160,250,255,.9)',1.6);}
+  // particles
+  for(const p of parts){const a=1-p.t/p.life;ctx.fillStyle=p.c+(a*(p.spark?1:.5))+')';ctx.beginPath();ctx.arc(p.x,p.y,p.sz*(p.spark?1:(1+p.t*2)),0,7);ctx.fill();}
+  // lighting
+  ctx.fillStyle='rgba(6,4,16,.36)';ctx.fillRect(0,0,W*T,H*T);
+  ctx.globalCompositeOperation='lighter';
+  for(const [lx,ly,ri] of lamps){if(S.blackout>0&&rooms[ri].dark)continue;const x=lx*T,y=ly*T;const gl=ctx.createRadialGradient(x,y,0,x,y,170);gl.addColorStop(0,'rgba(255,170,80,.13)');gl.addColorStop(1,'rgba(255,170,80,0)');ctx.fillStyle=gl;ctx.beginPath();ctx.arc(x,y,170,0,7);ctx.fill();}
+  ctx.globalCompositeOperation='source-over';
+  if(S.blackout>0){const fl=S.blackout>8.4?(Math.random()<.5?.2:.75):.72;ctx.fillStyle=`rgba(0,0,8,${fl})`;[1,2].forEach(i=>{const r=rooms[i];ctx.fillRect(r.x0*T,r.y0*T,(r.x1-r.x0+1)*T,(r.y1-r.y0+1)*T);});
+    if(S.form==='tesla'&&rooms[S.room]&&rooms[S.room].dark){const gl=ctx.createRadialGradient(P.x,P.y,0,P.x,P.y,70);gl.addColorStop(0,'rgba(113,241,255,.25)');gl.addColorStop(1,'rgba(113,241,255,0)');ctx.fillStyle=gl;ctx.beginPath();ctx.arc(P.x,P.y,70,0,7);ctx.fill();}}
+  // bubbles & floating text
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  for(const e of [...pax,...guards]){if(!e.bubble)continue;const b=e.bubble;const big=b.big;ctx.font=(big?'700 26px ':'600 14px ')+'Oswald, Arial Narrow, sans-serif';const w=ctx.measureText(b.t).width+(big?14:16),h=big?30:22,x=e.x,y=e.y-34;
+    ctx.fillStyle=e.kind==='guard'?'#e1252f':'#f1e8d6';ctx.beginPath();ctx.moveTo(x-w/2,y-h/2);ctx.lineTo(x+w/2+3,y-h/2-2);ctx.lineTo(x+w/2,y+h/2);ctx.lineTo(x+4,y+h/2);ctx.lineTo(x,y+h/2+7);ctx.lineTo(x-4,y+h/2);ctx.lineTo(x-w/2-2,y+h/2+1);ctx.closePath();ctx.fill();ctx.fillStyle=e.kind==='guard'?'#f1e8d6':'#0c0a10';ctx.fillText(b.t,x,y+1);}
+  for(const f of fx){const a=1-f.t/f.life;ctx.globalAlpha=Math.min(1,a*1.6);ctx.font=`700 ${f.size}px Oswald, Arial Narrow, sans-serif`;ctx.lineWidth=4;ctx.strokeStyle='#0c0a10';ctx.strokeText(f.text,f.x,f.y);ctx.fillStyle=f.color;ctx.fillText(f.text,f.x,f.y);ctx.globalAlpha=1;}
+  // guard name tags when tesla
+  if(tes){ctx.font='600 11px Oswald, Arial Narrow, sans-serif';for(const g of guards){ctx.fillStyle='rgba(225,37,47,.9)';ctx.fillText(g.name.toUpperCase(),g.x,g.y+24);}}
+}
+
+// ================= LOOP =================
+let last=performance.now();
+function frame(now){
+  const dt=Math.min(.05,(now-last)/1000);last=now;
+  if(S.phase==='play')update(dt);
+  else if(S.phase==='outro'){for(const p of parts){p.t+=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;}parts=parts.filter(p=>p.t<p.life);for(const f of fx){f.t+=dt;f.y-=28*dt;}fx=fx.filter(f=>f.t<f.life);}
+  if(S.phase==='dialog')dlgTick(dt);
+  render(dt);
+  if(!$('hud').hidden){updHUD(dt);drawMini();}
+  requestAnimationFrame(frame);
+}
+resize();buildMap();renderMap();newState();
+document.fonts&&document.fonts.ready.then(()=>renderMap());
+requestAnimationFrame(frame);
+window.__WOT={get S(){return S},get P(){return P},get guards(){return guards},get pax(){return pax},objs:()=>objs,toggleForm,interact,update,useSlot};
+})();
+</script>
